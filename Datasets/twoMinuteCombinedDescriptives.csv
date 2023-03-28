@@ -1,0 +1,17 @@
+Timepoint,figures_sex,Stress,mean_recall,sem_recall
+Recall1,Male,ELS,58.82352941,6.605375407
+Recall1,Male,NS,50,6.930541639
+Recall1,Female,ELS,49.42645074,6.372450884
+Recall1,Female,NS,42.4071027,7.389155945
+ExtinctionRecall,Male,ELS,46.3800905,5.963895006
+ExtinctionRecall,Male,NS,27.88461538,4.220964423
+ExtinctionRecall,Female,ELS,22.50337382,3.730033055
+ExtinctionRecall,Female,NS,27.82462635,4.900071155
+ReminderShock,Male,ELS,34.50226244,5.270931483
+ReminderShock,Male,NS,21.98972902,3.791764338
+ReminderShock,Female,ELS,20.31039136,3.392715861
+ReminderShock,Female,NS,21.07843137,3.490276821
+Reminder_Recall,Male,ELS,35.01602564,6.364561873
+Reminder_Recall,Male,NS,24.75135975,4.890294178
+Reminder_Recall,Female,ELS,26.34952767,6.150044501
+Reminder_Recall,Female,NS,16.21989122,4.065040658

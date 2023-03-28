@@ -1,0 +1,879 @@
+library(tidyverse)
+library(lme4)
+library(ggplot2)
+library(broom)
+library(ggfortify)
+library(car)
+library(lsr)
+
+# Get the n's involved for the whole thing 
+
+#### n's LOW-------------- 
+complete_ds_low_forNs <- complete_ds_low %>% 
+  group_by(Sex, Stress, Condition) %>% 
+  count()
+
+# n's HIGH----------------
+complete_ds_high_forNs <- complete_ds_high %>% 
+  group_by(Sex, Stress, Condition) %>% 
+  count()
+
+#### Inferential analysis
+
+#PrePost
+freezing_acquisition_high_long <- freezing_acquisition_high %>% 
+  pivot_longer(c("Pre", "Post"), names_to = "Pre_Post", values_to = "Percentage_freezing")
+
+freezing_acquisition_low_long <- freezing_acquisition_low %>% 
+  pivot_longer(c("Pre", "Post"), names_to = "Pre_Post", values_to = "Percentage_freezing")
+
+prepost_lm_high <- lm(Post - Pre ~ Sex * Stress, data = freezing_acquisition_high)
+summary(prepost_lm_high)
+prepost_aov_high <- aov(Post - Pre ~ Sex * Stress, data = freezing_acquisition_high)
+summary(prepost_aov_high)
+etaSquared(prepost_aov_high)
+anova_test(prepost_aov_high)
+
+
+prepost_lm_low <- lm(Post - Pre ~ Sex * Stress, data = freezing_acquisition_low)
+summary(prepost_lm_low)
+prepost_aov_low <- aov(Post - Pre ~ Sex * Stress, data = freezing_acquisition_low)
+summary(prepost_aov_low)
+etaSquared(prepost_aov_low)
+anova_test(prepost_aov_high)
+
+#Low
+hist(prepost_lm_low$residuals)
+
+#High
+hist(prepost_lm_high$residuals)
+
+
+#### Inferential stats ----
+#### HIGH Pre-post shock ----
+
+pre_post <- freezing_acquisition_long %>% 
+  filter(Timepoint == "Post")
+hist(pre_post$Percentage)
+
+model.diag.metrics <- augment(prepost_lm)
+head(model.diag.metrics)
+par(mfrow = c(2,2))
+plot(prepost_lm)
+
+#All  of the above suggests non normal data. 
+leveneTest(Percentage ~ Sex * Stress * Timepoint, data = freezing_acquisition_long)
+# Levenes test is very signficant. 
+re_lm <- lm(data = freezing_acquisition, Pre ~ Sex + Stress + Sex*Stress)
+summary(pre_lm)
+
+plot(freezing_acquisition$Sex, rstandard(pre_lm))
+hist(pre_lm$residuals)
+hist(post_lm$residuals)
+
+
+#check the residuals as a histogram
+hist(prepost_lm_2$residuals)
+
+freezing_acquisition_long <- freezing_acquisition %>% 
+  pivot_longer(col = c("Pre", "Post"), names_to = "Timepoint", values_to = "Percentage")
+
+prepost_lm_2 <- lm(data = freezing_acquisition_long, Percentage ~ Timepoint + Sex + Stress + Sex:Stress)
+summary(prepost_lm_2)
+
+
+# HIGH 2 minute extinction if I want to only look at 2 minute group
+complete_ds_high_2min <- complete_ds_high %>% 
+  select(c(1:4),recall_1) %>% 
+  filter(Condition == 2)
+
+#combined 2 and 10 miunte, looking at recall 
+complete_ds_high_2min_w10min <- complete_ds_high %>% 
+  select(c(1:4),recall_1)
+
+recall_lm_high <- lm(data = complete_ds_high_2min_w10min, recall_1 ~ Sex*Stress)
+summary(recall_lm_high)
+anova(recall_lm_high)
+
+#LOW 2 minute extinction if I want to only look at 2 minute group
+complete_ds_low_2min <- complete_ds_low %>% 
+  select(c(1:4),recall_1) %>% 
+  filter(Condition == 2)
+
+#combined 2 and 10 miunte, looking at recall 
+complete_ds_low_2min_w10min <- complete_ds_low %>% 
+  select(c(1:4),recall_1)
+
+recall_lm_low <- lm(data = complete_ds_low_2min_w10min, recall_1 ~ Sex*Stress)
+summary(recall_lm_low)
+anova(recall_lm_low)
+
+
+
+
+
+
+#### LOW Inferential 10 minute (ten_minute_extinction) ----
+ten_minute_extinction_low <- complete_ds_low %>% 
+  select(c(1:4),c(8:12)) %>% 
+  filter(Condition ==10)
+
+#ten_minute_ds <- list(ten_minute_extinction$ext1_curve, ten_minute_extinction$ext2_curve, ten_minute_extinction$ext3_curve, ten_minute_extinction$ext4_curve, ten_minute_extinction$ext5_curve)
+
+ten_minute_extinction_low_long <- ten_minute_extinction_low %>% 
+  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+  droplevels()
+ten_minute_extinction_low_long$timepoint <- as.factor(ten_minute_extinction_low_long$timepoint)
+
+# MODEL 1: Sex + Stress + Sex * Stress + timepoint <- very simple model
+low_ten_min_extinction_model <- lm(data = ten_minute_extinction_low_long, percentage ~ Stress + Sex + Sex * Stress * timepoint)
+
+summary(low_ten_min_extinction_model)
+Anova(low_ten_min_extinction_model)
+
+#### HIGH Inferential 10 minute (ten_minute_extinction) ----
+ten_minute_extinction_high <- complete_ds_high %>% 
+  select(c(1:4),c(8:12)) %>% 
+  filter(Condition ==10)
+
+#ten_minute_ds <- list(ten_minute_extinction$ext1_curve, ten_minute_extinction$ext2_curve, ten_minute_extinction$ext3_curve, ten_minute_extinction$ext4_curve, ten_minute_extinction$ext5_curve)
+
+ten_minute_extinction_high_long <- ten_minute_extinction_high %>% 
+  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+  droplevels()
+ten_minute_extinction_high_long$timepoint <- as.factor(ten_minute_extinction_high_long$timepoint)
+
+# MODEL 1: Sex + Stress + Sex * Stress + timepoint <- very simple model
+high_ten_min_extinction_model <- lm(data = ten_minute_extinction_high_long, percentage ~ Stress + Sex + Sex * Stress * timepoint)
+
+summary(high_ten_min_extinction_model)
+Anova(high_ten_min_extinction_model)
+
+
+
+
+#### HIGH extinction recall (recall_1) 
+recall_1_high <- complete_ds_high %>% 
+  select(c(1:4),"extinction_recall")
+
+hist(recall_1_high$extinction_recall)
+
+#log transform
+recall_1_high$extinction_recallPLusone <- recall_1_high$extinction_recall + 1
+recall_1_high$extinction_recall_log <- log(recall_1_high$extinction_recallPLusone)
+
+#sqrt transform
+recall_1_high$extinction_recall_sqrt <- sqrt(recall_1_high$extinction_recall)
+
+#box cox - doesnt work 
+recall_1_high$extinction_recall_box <- boxCox(recall_1_high$extinction_recall)
+
+hist(recall_1_high$extinction_recall)
+hist(recall_1_high$extinction_recall_log)
+shapiro.test(recall_1_high$extinction_recall)
+shapiro.test(recall_1_high$extinction_recall_sqrt)
+
+
+ext_recall_high_lm <- lm(data = recall_1_high, extinction_recall_log ~ Sex + Stress + Condition + Sex:Stress + Sex:Condition + Stress:Condition + Sex:Sex:Condition)
+summary(ext_recall_high_lm)
+Anova(ext_recall_high_lm)
+#try a possion dist <- not sure that this is correct
+poisson_model_high_glm <- glm(extinction_recall ~ Sex + Stress + Condition + Sex:Stress + Sex:Condition + Stress:Condition + Sex:Sex:Condition, data = recall_1_high, family = poisson(link = "log"))
+summary(poisson_model_high_glm)
+#individual t tests conducted assess each group 
+# M ELS
+m_els_ds <- recall_1 %>% 
+  filter(Sex == "Male" & Stress == "ELS")
+
+m_els_ds %>%
+  group_by(Condition) %>% 
+  count()  
+
+#for multiple histograms in one spot
+par(mfrow = c(4,2))
+
+
+m_els_data1 <- m_els_ds %>% 
+  filter(Condition == 2)  
+m_els_data2 <- m_els_ds %>% 
+  filter(Condition == 10)
+
+# M NS
+m_ns_ds <- recall_1 %>% 
+  filter(Sex == "Male" & Stress == "NS")
+
+m_ns_data1 <- m_ns_ds %>% 
+  filter(Condition == 2)  
+m_ns_data2 <- m_ns_ds %>% 
+  filter(Condition == 10)
+
+# F ELS
+f_els_ds <- recall_1 %>% 
+  filter(Sex == "Female" & Stress == "ELS")
+
+f_els_data1 <- f_els_ds %>% 
+  filter(Condition == 2)  
+f_els_data2 <- f_els_ds %>% 
+  filter(Condition == 10)
+
+# F NS
+f_ns_ds <- recall_1 %>% 
+  filter(Sex == "Female" & Stress == "NS")
+
+f_ns_data1 <- f_ns_ds %>% 
+  filter(Condition == 2)  
+f_ns_data2 <- f_ns_ds %>% 
+  filter(Condition == 10)
+
+# Check the t-tests 
+t.test(extinction_recall ~ Condition, data = m_els_ds_high)
+t.test(extinction_recall ~ Condition, data = m_ns_ds_high)
+t.test(extinction_recall ~ Condition, data = f_els_ds_high)
+t.test(extinction_recall ~ Condition, data = f_ns_ds_high)
+
+
+#this isnt working yet!
+#lapply(split_datasets, t.test(extinction_recall ~ Condition))
+
+
+#HIGH reminder (reminder_shock) 
+#individual t tests conducted assess each group 
+# M ELS
+m_els_ds <- reminder_shock %>% 
+  filter(Sex == "Male" & Stress == "ELS")
+
+m_els_ds %>%
+  group_by(Condition) %>% 
+  count()  
+
+#for multiple histograms in one spot
+par(mfrow = c(4,2))
+
+
+m_els_data1 <- m_els_ds %>% 
+  filter(Condition == 2)  
+m_els_data2 <- m_els_ds %>% 
+  filter(Condition == 10)
+
+# M NS
+m_ns_ds <- reminder_shock %>% 
+  filter(Sex == "Male" & Stress == "NS")
+
+m_ns_data1 <- m_ns_ds %>% 
+  filter(Condition == 2)  
+m_ns_data2 <- m_ns_ds %>% 
+  filter(Condition == 10)
+
+# F ELS
+f_els_ds <- reminder_shock %>% 
+  filter(Sex == "Female" & Stress == "ELS")
+
+f_els_data1 <- f_els_ds %>% 
+  filter(Condition == 2)  
+f_els_data2 <- f_els_ds %>% 
+  filter(Condition == 10)
+
+# F NS
+f_ns_ds <- reminder_shock %>% 
+  filter(Sex == "Female" & Stress == "NS")
+
+f_ns_data1 <- f_ns_ds %>% 
+  filter(Condition == 2)  
+f_ns_data2 <- f_ns_ds %>% 
+  filter(Condition == 10)
+
+#histogram_datasets <- list(m_els_data1$extinction_recall, m_els_data2$extinction_recall,
+#                           m_ns_data1$extinction_recall, m_ns_data2$extinction_recall,
+#                           f_els_data1$extinction_recall, f_els_data2$extinction_recall,
+#                           f_ns_data1$extinction_recall, f_ns_data2$extinction_recall)
+
+#lapply(histogram_datasets, hist)
+
+
+
+# Check the t-tests 
+t.test(reminder_day1_shock ~ Condition, data = m_els_ds)
+
+t.test(reminder_day1_shock ~ Condition, data = m_ns_ds)
+
+t.test(reminder_day1_shock ~ Condition, data = f_els_ds)
+
+t.test(reminder_day1_shock ~ Condition, data = f_ns_ds)
+
+
+
+
+
+#### HIGH reminder shock --------
+#individual t tests conducted assess each group 
+reminder_shock <- reminder_shock %>%
+  drop_na() %>% 
+  filter(Shock == "h")
+
+# M ELS
+m_els_ds <- reminder_shock %>% 
+  filter(Sex == "Male" & Stress == "ELS")
+
+m_els_data1 <- m_els_ds %>% 
+  filter(Condition == 2)  
+m_els_data2 <- m_els_ds %>% 
+  filter(Condition == 10)
+
+# M NS
+m_ns_ds <- reminder_shock %>% 
+  filter(Sex == "Male" & Stress == "NS")
+
+m_ns_data1 <- m_ns_ds %>% 
+  filter(Condition == 2)  
+m_ns_data2 <- m_ns_ds %>% 
+  filter(Condition == 10)
+
+# F ELS
+f_els_ds <- reminder_shock %>% 
+  filter(Sex == "Female" & Stress == "ELS")
+
+f_els_data1 <- f_els_ds %>% 
+  filter(Condition == 2)  
+f_els_data2 <- f_els_ds %>% 
+  filter(Condition == 10)
+
+# F NS
+f_ns_ds <- reminder_shock %>% 
+  filter(Sex == "Female" & Stress == "NS")
+
+f_ns_data1 <- f_ns_ds %>% 
+  filter(Condition == 2)  
+f_ns_data2 <- f_ns_ds %>% 
+  filter(Condition == 10)
+
+# Check the t-tests 
+t.test(reminder_day1_shock ~ Condition, data = m_els_ds)
+t.test(reminder_day1_shock ~ Condition, data = m_ns_ds)
+t.test(reminder_day1_shock ~ Condition, data = f_els_ds)
+t.test(reminder_day1_shock ~ Condition, data = f_ns_ds)
+
+
+
+
+#### HIGH reminder recall (reminder_recall) ----
+reminder_recall_high <- reminder_recall %>%
+  drop_na() %>% 
+  filter(Shock == "h")
+
+
+#individual t tests conducted assess each group 
+# M ELS
+m_els_ds_rem_recall <- reminder_recall_high %>% 
+  filter(Sex == "Male" & Stress == "ELS")
+
+m_els_ds %>%
+  group_by(Condition) %>% 
+  count()  
+
+#for multiple histograms in one spot
+par(mfrow = c(4,2))
+
+
+m_els_2ext_rem_recall <- m_els_ds %>% 
+  filter(Condition == 2)  
+m_els_10ext_rem_recall <- m_els_ds %>% 
+  filter(Condition == 10)
+
+# M NS
+m_ns_ds_rem_recall <- reminder_recall_high %>% 
+  filter(Sex == "Male" & Stress == "NS")
+
+m_ns_2ext_rem_recall <- m_ns_ds %>% 
+  filter(Condition == 2)  
+m_ns_10ext_rem_recall <- m_ns_ds %>% 
+  filter(Condition == 10)
+
+# F ELS
+f_els_ds_rem_recall <- reminder_recall_high %>% 
+  filter(Sex == "Female" & Stress == "ELS")
+
+f_els_2ext_rem_recall <- f_els_ds %>% 
+  filter(Condition == 2)  
+f_els_10ext_rem_recall <- f_els_ds %>% 
+  filter(Condition == 10)
+
+# F NS
+f_ns_ds_rem_recall <- reminder_recall_high %>% 
+  filter(Sex == "Female" & Stress == "NS")
+
+f_ns_2ext_rem_recall <- f_ns_ds %>% 
+  filter(Condition == 2)  
+f_ns_10ext_rem_recall <- f_ns_ds %>% 
+  filter(Condition == 10)
+
+# Check the t-tests 
+t.test(reminder_day2 ~ Condition, data = m_els_ds_rem_recall)
+t.test(reminder_day2 ~ Condition, data = m_ns_ds_rem_recall)
+t.test(reminder_day2 ~ Condition, data = f_els_ds_rem_recall)
+t.test(reminder_day2 ~ Condition, data = f_ns_ds_rem_recall)
+
+
+#### Low shock ----------
+#### Pre-post shock ---------
+
+freezing_acquisition_long_low <- freezing_acquisition_low %>% 
+  pivot_longer(col = c("Pre", "Post"), names_to = "Timepoint", values_to = "Percentage")
+
+
+prepost_lm <- lm(Percentage ~ Sex * Stress + Timepoint, data = freezing_acquisition_long_low)
+summary(prepost_lm)
+prepost_aov <- aov(Percentage ~ Sex * Stress + Timepoint, data = freezing_acquisition_long_low)
+summary(prepost_aov)
+etaSquared(prepost_aov)
+
+
+pre_lm_low <- lm(data = freezing_acquisition_low, Pre ~ Sex + Stress + Sex*Stress)
+summary(pre_lm_low)
+
+plot(pre_lm_low)
+
+
+post_lm_low <- lm(data = freezing_acquisition_low, Post ~ Sex + Stress + Sex*Stress)
+summary(post_lm_low)
+
+
+plot(freezing_acquisition_low$Sex, rstandard(pre_lm_low))
+hist(pre_lm_low$residuals)
+hist(post_lm_low$residuals)
+
+freezing_acquisition_low$Pre1 <- freezing_acquisition_low$Pre + 1
+
+pre_lm1_low <- lm(data = freezing_acquisition_low, Pre1 ~ Sex * Stress)
+
+#combined test 
+prepost_lm_low <- lm(data = freezing_acquisition_low, Post ~ Sex + Stress + Sex:Stress + Pre)
+summary(prepost_lm_low)
+
+prepost_lm_2_low <- lm(data = freezing_acquisition_long_low, Percentage ~ Timepoint + Sex + Stress + Sex:Stress)
+summary(prepost_lm_2_low)
+
+anova(prepost_lm_2_low)
+
+
+
+##### comparison between low and high 
+high_low_post_compare <- complete_ds %>% 
+  select(1:6)
+
+high_low_post_compare <- drop_na(high_low_post_compare)
+
+# descriptives 
+high_low_post_compare_descriptives <- high_low_post_compare %>% 
+  group_by(Sex, Stress, Shock)%>% 
+  summarize(mean_freezing_pre = mean(Pre, na.rm = T), sem_freezing_pre = sd(Pre, na.rm = T)/sqrt(length(Pre)), mean_freezing_post = mean(Post, na.rm = T), sem_freezing_post = sd(Post, na.rm = T)/sqrt(length(Post)))
+
+
+#checking for post shock
+high_low_post_compare_lm <- lm(data = high_low_post_compare, Post ~ Sex * Stress * Shock )
+summary(high_low_post_compare_lm)
+
+#Control - testing for pre shock
+high_low_preControl_compare_lm <- lm(data = high_low_post_compare, Pre ~ Sex * Stress * Shock )
+summary(high_low_preControl_compare_lm)
+
+
+
+#### LOW recall (two_minute_extinction)----
+two_minute_extinction_low_0count <- two_minute_extinction_low  %>% 
+  filter(recall_1 == 0)
+two_minute_extinction_low_0count %>% 
+  group_by(Sex, Stress) %>% 
+  count()
+
+
+two_minute_extinction <- complete_ds %>% 
+  select(1:4,"recall_1")
+
+nonstress_two_minute_extinction <- two_minute_extinction %>% 
+  filter(Stress == "NS")
+
+shock_test_lm <- lm(data = nonstress_two_minute_extinction, recall_1 ~ Sex * Shock)
+summary(shock_test_lm)
+aov_shock_test <- aov(shock_test_lm)
+summary(aov_shock_test)
+
+recall_lm_low <- lm(data = two_minute_extinction_low, recall_1 ~ Sex + Stress + Sex:Stress)
+summary(recall_lm_low)
+recall_aov <- aov(recall_lm_low)
+
+recall_lm_no_int_low <- lm(data = two_minute_extinction_low, recall_1 ~ Sex + Stress)
+summary(recall_lm_no_int_low)
+
+hist(two_minute_extinction_low$recall_1)
+
+
+#### Extinction recall (recall_1) ----
+  # LOW 
+#Count for n's
+recall_1_low_n <- recall_1_low %>% 
+  filter(extinction_recall == 0) %>% 
+  group_by(Sex, Stress, Condition) %>% 
+  count()
+
+
+# LOW individual t tests conducted assess each group 
+# M ELS
+m_els_ds_low <- recall_1_low %>% 
+  filter(Sex == "Male" & Stress == "ELS")
+
+m_els_ds_low %>%
+  group_by(Condition) %>% 
+  count()  
+
+#for multiple histograms in one spot
+par(mfrow = c(4,2))
+
+
+m_els_data1_low <- m_els_ds_low %>% 
+  filter(Condition == 2)  
+m_els_data2_low <- m_els_ds_low %>% 
+  filter(Condition == 10)
+
+# M NS
+m_ns_ds_low <- recall_1_low %>% 
+  filter(Sex == "Male" & Stress == "NS")
+
+m_ns_data1_low <- m_ns_ds_low %>% 
+  filter(Condition == 2)  
+m_ns_data2_low <- m_ns_ds_low %>% 
+  filter(Condition == 10)
+
+# F ELS
+f_els_ds_low <- recall_1_low %>% 
+  filter(Sex == "Female" & Stress == "ELS")
+
+f_els_data1_low <- f_els_ds_low %>% 
+  filter(Condition == 2)  
+f_els_data2_low <- f_els_ds_low %>% 
+  filter(Condition == 10)
+
+# F NS
+f_ns_ds_low <- recall_1_low %>% 
+  filter(Sex == "Female" & Stress == "NS")
+
+f_ns_data1_low <- f_ns_ds_low %>% 
+  filter(Condition == 2)  
+f_ns_data2_low <- f_ns_ds_low %>% 
+  filter(Condition == 10)
+
+histogram_datasets <- list(m_els_data1_low$extinction_recall, m_els_data2_low$extinction_recall,
+                           m_ns_data1_low$extinction_recall, m_ns_data2_low$extinction_recall,
+                           f_els_data1_low$extinction_recall, f_els_data2_low$extinction_recall,
+                           f_ns_data1_low$extinction_recall, f_ns_data2_low$extinction_recall)
+
+lapply(histogram_datasets, hist)
+
+# Check the t-tests 
+t.test(extinction_recall ~ Condition, data = m_els_ds_low)
+t.test(extinction_recall ~ Condition, data = m_ns_ds_low)
+t.test(extinction_recall ~ Condition, data = f_els_ds_low)
+t.test(extinction_recall ~ Condition, data = f_ns_ds_low)
+
+# HIGH individual t tests conducted assess each group 
+# M ELS
+m_els_ds_high <- recall_1_high %>% 
+  filter(Sex == "Male" & Stress == "ELS")
+
+m_els_ds_high %>%
+  group_by(Condition) %>% 
+  count()  
+
+#for multiple histograms in one spot
+par(mfrow = c(4,2))
+
+
+m_els_data1_high <- m_els_ds_high %>% 
+  filter(Condition == 2)  
+m_els_data2_high <- m_els_ds_high %>% 
+  filter(Condition == 10)
+
+# M NS
+m_ns_ds_high <- recall_1_high %>% 
+  filter(Sex == "Male" & Stress == "NS")
+
+m_ns_data1_high <- m_ns_ds_high %>% 
+  filter(Condition == 2)  
+m_ns_data2_high <- m_ns_ds_high %>% 
+  filter(Condition == 10)
+
+# F ELS
+f_els_ds_high <- recall_1_high %>% 
+  filter(Sex == "Female" & Stress == "ELS")
+
+f_els_data1_high <- f_els_ds_high %>% 
+  filter(Condition == 2)  
+f_els_data2_high <- f_els_ds_high %>% 
+  filter(Condition == 10)
+
+# F NS
+f_ns_ds_high <- recall_1_high %>% 
+  filter(Sex == "Female" & Stress == "NS")
+
+f_ns_data1_high <- f_ns_ds_high %>% 
+  filter(Condition == 2)  
+f_ns_data2_high <- f_ns_ds_high %>% 
+  filter(Condition == 10)
+
+histogram_datasets <- list(m_els_data1_high$extinction_recall, m_els_data2_high$extinction_recall,
+                           m_ns_data1_high$extinction_recall, m_ns_data2_high$extinction_recall,
+                           f_els_data1_high$extinction_recall, f_els_data2_high$extinction_recall,
+                           f_ns_data1_high$extinction_recall, f_ns_data2_high$extinction_recall)
+
+lapply(histogram_datasets, hist)
+
+# Check the t-tests 
+t.test(extinction_recall ~ Condition, data = m_els_ds_high)
+t.test(extinction_recall ~ Condition, data = m_ns_ds_high)
+t.test(extinction_recall ~ Condition, data = f_els_ds_high)
+t.test(extinction_recall ~ Condition, data = f_ns_ds_high)
+
+
+
+
+##### Low reminder shock ------------------
+
+
+reminder_shock_low <- reminder_shock %>%
+  drop_na() %>% 
+  filter(Shock == "l")
+
+#early exploratory anova
+
+reminder_shock_lm <- lm(data = reminder_shock_low, reminder_day1_shock ~ Sex * Stress * Condition)
+summary(reminder_shock_lm)
+aov_reminder_shock <- aov(reminder_shock_lm)
+summary(aov_reminder_shock)
+
+#individual t tests conducted assess each group 
+# M ELS
+m_els_ds_rem_shock_low <- reminder_shock_low %>% 
+  filter(Sex == "Male" & Stress == "ELS")
+
+m_els_data1_low <- reminder_shock_low %>% 
+  filter(Condition == 2)  
+m_els_data2_low <- reminder_shock_low %>% 
+  filter(Condition == 10)
+
+# M NS
+m_ns_ds_rem_shock_low <- reminder_shock_low %>% 
+  filter(Sex == "Male" & Stress == "NS")
+
+m_ns_data1_low <- reminder_shock_low %>% 
+  filter(Condition == 2)  
+m_ns_data2_low <- reminder_shock_low %>% 
+  filter(Condition == 10)
+
+# F ELS
+f_els_ds_rem_shock_low <- reminder_shock_low %>% 
+  filter(Sex == "Female" & Stress == "ELS")
+
+f_els_data1_low <- reminder_shock_low %>% 
+  filter(Condition == 2)  
+f_els_data2_low <- reminder_shock_low %>% 
+  filter(Condition == 10)
+
+# F NS
+f_ns_ds_rem_shock_low <- reminder_shock_low %>% 
+  filter(Sex == "Female" & Stress == "NS")
+
+f_ns_data1_low <- reminder_shock_low %>% 
+  filter(Condition == 2)  
+f_ns_data2_low <- reminder_shock_low %>% 
+  filter(Condition == 10)
+
+# Check the t-tests 
+t.test(reminder_day1_shock ~ Condition, data = m_els_ds_rem_shock_low)
+t.test(reminder_day1_shock ~ Condition, data = m_ns_ds_rem_shock_low)
+t.test(reminder_day1_shock ~ Condition, data = f_els_ds_rem_shock_low)
+t.test(reminder_day1_shock ~ Condition, data = f_ns_ds_rem_shock_low)
+
+##### High reminder shock ------------------
+
+reminder_shock_high <- reminder_shock %>%
+  drop_na() %>% 
+  filter(Shock == "h")
+
+#early exploratory anova
+reminder_shock_lm <- lm(data = reminder_shock_high, reminder_day1_shock ~ Sex * Stress * Condition)
+summary(reminder_shock_lm)
+aov_reminder_shock <- aov(reminder_shock_lm)
+summary(aov_reminder_shock)
+
+#individual t tests conducted assess each group 
+# M ELS
+m_els_ds_rem_shock_high <- reminder_shock_high %>% 
+  filter(Sex == "Male" & Stress == "ELS")
+
+m_els_data1_high <- reminder_shock_high %>% 
+  filter(Condition == 2)  
+m_els_data2_high <- reminder_shock_high %>% 
+  filter(Condition == 10)
+
+# M NS
+m_ns_ds_rem_shock_high <- reminder_shock_high %>% 
+  filter(Sex == "Male" & Stress == "NS")
+
+m_ns_data1_high <- reminder_shock_high %>% 
+  filter(Condition == 2)  
+m_ns_data2_high <- reminder_shock_high %>% 
+  filter(Condition == 10)
+
+# F ELS
+f_els_ds_rem_shock_high <- reminder_shock_high %>% 
+  filter(Sex == "Female" & Stress == "ELS")
+
+f_els_data1_high <- reminder_shock_high %>% 
+  filter(Condition == 2)  
+f_els_data2_high <- reminder_shock_high %>% 
+  filter(Condition == 10)
+
+# F NS
+f_ns_ds_rem_shock_high <- reminder_shock_high %>% 
+  filter(Sex == "Female" & Stress == "NS")
+
+f_ns_data1_high <- reminder_shock_high %>% 
+  filter(Condition == 2)  
+f_ns_data2_high <- reminder_shock_high %>% 
+  filter(Condition == 10)
+
+# Check the t-tests 
+t.test(reminder_day1_shock ~ Condition, data = m_els_ds_rem_shock_high)
+t.test(reminder_day1_shock ~ Condition, data = m_ns_ds_rem_shock_high)
+t.test(reminder_day1_shock ~ Condition, data = f_els_ds_rem_shock_high)
+t.test(reminder_day1_shock ~ Condition, data = f_ns_ds_rem_shock_high)
+
+
+#### Low reminder recall -------------------
+
+reminder_recall_low <- reminder_recall %>%
+  drop_na() %>% 
+  filter(Shock == "l")
+
+#early exploratory anova
+reminder_recall_lm <- lm(data = reminder_recall_low, reminder_day2 ~ Sex * Stress * Condition)
+summary(reminder_recall_lm)
+aov_reminder_recall <- aov(reminder_recall_lm)
+summary(aov_reminder_recall)
+
+#individual t tests conducted assess each group 
+# M ELS
+m_els_ds_rem_recall_low <- reminder_recall_low %>% 
+  filter(Sex == "Male" & Stress == "ELS")
+
+m_els_data1_low <- reminder_recall_low %>% 
+  filter(Condition == 2)  
+m_els_data2_low <- reminder_recall_low %>% 
+  filter(Condition == 10)
+
+# M NS
+m_ns_ds_rem_recall_low <- reminder_recall_low %>% 
+  filter(Sex == "Male" & Stress == "NS")
+
+m_ns_data1_low <- reminder_recall_low %>% 
+  filter(Condition == 2)  
+m_ns_data2_low <- reminder_recall_low %>% 
+  filter(Condition == 10)
+
+# F ELS
+f_els_ds_rem_recall_low <- reminder_recall_low %>% 
+  filter(Sex == "Female" & Stress == "ELS")
+
+f_els_data1_low <- reminder_recall_low %>% 
+  filter(Condition == 2)  
+f_els_data2_low <- reminder_recall_low %>% 
+  filter(Condition == 10)
+
+# F NS
+f_ns_ds_rem_recall_low <- reminder_recall_low %>% 
+  filter(Sex == "Female" & Stress == "NS")
+
+f_ns_data1_low <- reminder_recall_low %>% 
+  filter(Condition == 2)  
+f_ns_data2_low <- reminder_recall_low %>% 
+  filter(Condition == 10)
+
+# Check the t-tests 
+t.test(reminder_day2 ~ Condition, data = m_els_ds_rem_recall_low)
+t.test(reminder_day2 ~ Condition, data = m_ns_ds_rem_recall_low)
+t.test(reminder_day2 ~ Condition, data = f_els_ds_rem_recall_low)
+t.test(reminder_day2 ~ Condition, data = f_ns_ds_rem_recall_low)
+
+
+#### high reminder recall -------------------
+
+reminder_recall_high <- reminder_recall %>%
+  drop_na() %>% 
+  filter(Shock == "h")
+
+#early exploratory anova
+reminder_recall_lm <- lm(data = reminder_recall_high, reminder_day2 ~ Sex * Stress * Condition)
+summary(reminder_recall_lm)
+aov_reminder_recall <- aov(reminder_recall_lm)
+summary(aov_reminder_recall)
+
+#individual t tests conducted assess each group 
+# M ELS
+m_els_ds_rem_recall_high <- reminder_recall_high %>% 
+  filter(Sex == "Male" & Stress == "ELS")
+
+m_els_data1_high <- reminder_recall_high %>% 
+  filter(Condition == 2)  
+m_els_data2_high <- reminder_recall_high %>% 
+  filter(Condition == 10)
+
+# M NS
+m_ns_ds_rem_recall_high <- reminder_recall_high %>% 
+  filter(Sex == "Male" & Stress == "NS")
+
+m_ns_data1_high <- reminder_recall_high %>% 
+  filter(Condition == 2)  
+m_ns_data2_high <- reminder_recall_high %>% 
+  filter(Condition == 10)
+
+# F ELS
+f_els_ds_rem_recall_high <- reminder_recall_high %>% 
+  filter(Sex == "Female" & Stress == "ELS")
+
+f_els_data1_high <- reminder_recall_high %>% 
+  filter(Condition == 2)  
+f_els_data2_high <- reminder_recall_high %>% 
+  filter(Condition == 10)
+
+# F NS
+f_ns_ds_rem_recall_high <- reminder_recall_high %>% 
+  filter(Sex == "Female" & Stress == "NS")
+
+f_ns_data1_high <- reminder_recall_high %>% 
+  filter(Condition == 2)  
+f_ns_data2_high <- reminder_recall_high %>% 
+  filter(Condition == 10)
+
+# Check the t-tests 
+t.test(reminder_day2 ~ Condition, data = m_els_ds_rem_recall_high)
+t.test(reminder_day2 ~ Condition, data = m_ns_ds_rem_recall_high)
+t.test(reminder_day2 ~ Condition, data = f_els_ds_rem_recall_high)
+t.test(reminder_day2 ~ Condition, data = f_ns_ds_rem_recall_high)
+
+
+
+
+# tests that Kerrie requests for extinction recall (ds come from other script):
+#High intensity shock 
+recall_high_lm <- lm(data = recall_1_high, extinction_recall ~ Sex * Stress * Condition)
+recall_high_lm_AOV <- aov(recall_high_lm)
+summary(recall_high_lm)
+summary(recall_high_lm_AOV)
+
+#Low intensity shock 
+recall_low_lm <- lm(data = recall_1_low, extinction_recall ~ Sex * Stress * Condition)
+recall_low_lm_AOV <- aov(recall_low_lm)
+summary(recall_low_lm)
+summary(recall_low_lm_AOV)
+
+
+

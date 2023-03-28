@@ -1,0 +1,9 @@
+"","sex_stress","Condition","Sex","Stress","figures_sex","sex_stress_condition","mean_extRecall","sem_extRecall"
+"1","Male_NS","2","Male","NS","Male","Male_NS_2",27.884615384875,4.22096442251732
+"2","Male_NS","10","Male","NS","Male","Male_NS_10",21.5483234706923,7.27577985207548
+"3","Male_ELS","2","Male","ELS","Male","Male_ELS_2",46.380090498,5.9638950057402
+"4","Male_ELS","10","Male","ELS","Male","Male_ELS_10",28.808446456,4.8600314027829
+"5","Female_NS","2","Female","NS","Female","Female_NS_2",27.8246263538235,4.90007115543481
+"6","Female_NS","10","Female","NS","Female","Female_NS_10",16.0256410252667,4.19369929058123
+"7","Female_ELS","2","Female","ELS","Female","Female_ELS_2",22.5033738198421,3.73003305516945
+"8","Female_ELS","10","Female","ELS","Female","Female_ELS_10",23.8196988197143,4.82822727610329
