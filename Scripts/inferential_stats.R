@@ -5,7 +5,9 @@ library(broom)
 library(ggfortify)
 library(car)
 library(lsr)
-
+library(ggpubr)
+library(rstatix)
+library(emmeans)
 # Get the n's involved for the whole thing 
 
 #### n's LOW-------------- 
@@ -860,20 +862,196 @@ t.test(reminder_day2 ~ Condition, data = f_els_ds_rem_recall_high)
 t.test(reminder_day2 ~ Condition, data = f_ns_ds_rem_recall_high)
 
 
+#####Repeated measures reminder data ###########################################
+####Low
+#combine the datasets for the model 
+recall_1_low$index <- seq_len(nrow(recall_1_low))
+reminder_shock_low$index <- seq_len(nrow(reminder_shock_low)) 
+reminder_shock_low_rmIVS <- reminder_shock_low %>% 
+  select(-c(Sex,Stress, Condition))
+
+reminder_recall_low$index <- seq_len(nrow(reminder_recall_low))
+reminder_recall_low_rmIVS <- reminder_recall_low %>% 
+  select(-c(Sex,Stress, Condition))
+
+#wide format
+combined_timepoints_low <- merge(merge(recall_1_low, reminder_shock_low_rmIVS, by = "index"), reminder_recall_low_rmIVS, by = "index") %>% 
+  select(-timepoint)
+
+#long format
+combined_timepoints_long_low <- combined_timepoints_low %>% 
+  pivot_longer(cols = c(extinction_recall,reminder_day1_shock, reminder_day2), names_to = "timepoint", values_to = "freezing_percentage")
 
 
-# tests that Kerrie requests for extinction recall (ds come from other script):
-#High intensity shock 
-recall_high_lm <- lm(data = recall_1_high, extinction_recall ~ Sex * Stress * Condition)
-recall_high_lm_AOV <- aov(recall_high_lm)
-summary(recall_high_lm)
-summary(recall_high_lm_AOV)
+#think for PWC need to remove the NA values. 
+combined_timepoints_low_rem_na <- combined_timepoints_low[complete.cases(combined_timepoints_low), ]
+combined_timepoints_long_low_rem_na <- combined_timepoints_low_rem_na %>% 
+  pivot_longer(cols = c(extinction_recall,reminder_day1_shock, reminder_day2), names_to = "timepoint", values_to = "freezing_percentage")
 
-#Low intensity shock 
-recall_low_lm <- lm(data = recall_1_low, extinction_recall ~ Sex * Stress * Condition)
-recall_low_lm_AOV <- aov(recall_low_lm)
-summary(recall_low_lm)
-summary(recall_low_lm_AOV)
+combined_timepoints_long_low_rem_na$timepoint <- as.factor(combined_timepoints_long_low_rem_na$timepoint)
+
+reminder_rm_low <- anova_test(data = combined_timepoints_long_low, dv = freezing_percentage, wid = index, within = timepoint, between = c("Sex", "Stress", "Condition"))
+get_anova_table(reminder_rm)
+
+# pairwise comparisons
+pwc_reminder_low <- combined_timepoints_long_low_rem_na %>%
+  pairwise_t_test(
+    freezing_percentage ~ Sex, paired = FALSE,
+    p.adjust.method = "bonferroni"
+  )
+pwc_reminder_low
+#### High 
+
+#combine the datasets for the model 
+recall_1_high$index <- seq_len(nrow(recall_1_high))
+recall_1_high <- recall_1_high %>% 
+  select(-c(Shock, extinction_recallPLusone, extinction_recall_log, extinction_recall_sqrt))
+reminder_shock_high$index <- seq_len(nrow(reminder_shock_high)) 
+reminder_shock_high_rmIVS <- reminder_shock_high %>% 
+  select(-c(Sex,Stress, Condition, Shock))
+
+reminder_recall_high$index <- seq_len(nrow(reminder_recall_high))
+reminder_recall_high_rmIVS <- reminder_recall_high %>% 
+  select(-c(Sex,Stress, Condition, Shock))
+
+#wide format
+combined_timepoints_high <- merge(merge(recall_1_high, reminder_shock_high_rmIVS, by = "index"), reminder_recall_high_rmIVS, by = "index")
+
+#long format
+combined_timepoints_long_high <- combined_timepoints_high %>% 
+  pivot_longer(cols = c(extinction_recall,reminder_day1_shock, reminder_day2), names_to = "timepoint", values_to = "freezing_percentage")
+
+
+#think for PWC need to remove the NA values. 
+combined_timepoints_high_rem_na <- combined_timepoints_high[complete.cases(combined_timepoints_high), ]
+combined_timepoints_long_high_rem_na <- combined_timepoints_high_rem_na %>% 
+  pivot_longer(cols = c(extinction_recall,reminder_day1_shock, reminder_day2), names_to = "timepoint", values_to = "freezing_percentage")
+
+combined_timepoints_long_high_rem_na$timepoint <- as.factor(combined_timepoints_long_high_rem_na$timepoint)
+
+reminder_rm_high <- anova_test(data = combined_timepoints_long_high, dv = freezing_percentage, wid = index, within = timepoint, between = c("Sex", "Stress", "Condition"))
+get_anova_table(reminder_rm)
+
+# pairwise comparisons
+pwc_reminder_high <- combined_timepoints_long_high_rem_na %>%
+  pairwise_t_test(
+    freezing_percentage ~ Sex, paired = FALSE,
+    p.adjust.method = "bonferroni"
+  )
+pwc_reminder_high
+
+
+###### Extinction reminder_shock reminder recall figures #######################
+
+#### Low#################
+
+#split the 2 and 10 group 
+combined_timepoints_long_low_rem_na_2 <- combined_timepoints_long_low_rem_na %>% 
+  filter(Condition == 2)
+combined_timepoints_long_low_2_rem_na <- combined_timepoints_long_low_rem_na_2 %>% 
+  unite(sex_stress, c(Sex, Stress), remove=FALSE)
+combined_timepoints_long_low_2_rem_na_desc <- combined_timepoints_long_low_rem_na_2 %>% 
+  unite(sex_stress, c(Sex, Stress), remove=FALSE) %>% 
+  group_by(sex_stress, timepoint) %>% 
+  summarize(mean_freezing = mean(freezing_percentage), sem_freezing = sd(freezing_percentage) / sqrt(n()))
 
 
 
+combined_timepoints_long_low_rem_na_10 <- combined_timepoints_long_low_rem_na %>% 
+  filter(Condition == 10)
+#figures for the above statistics
+combined_timepoints_long_low_10_rem_na <- combined_timepoints_long_low_rem_na_10 %>% 
+  unite(sex_stress, c(Sex, Stress), remove=FALSE)
+combined_timepoints_long_low_10_rem_na_desc <- combined_timepoints_long_low_rem_na_10 %>% 
+  unite(sex_stress, c(Sex, Stress), remove=FALSE) %>% 
+  group_by(sex_stress, timepoint) %>% 
+  summarize(mean_freezing = mean(freezing_percentage), sem_freezing = sd(freezing_percentage) / sqrt(n()))
+
+
+  
+# extinction curve figure #### figure out how to make the lines dashed or solid
+# Define line types for each factor level
+#line_types <- c("dashed", "solid", "dashed", "solid")
+
+reminder_figure_low_rem_na_2 <- ggplot(data = combined_timepoints_long_low_2_rem_na_desc, aes(x = timepoint, y = mean_freezing, group = sex_stress, color = sex_stress)) + 
+  geom_line(size = 2)+
+  geom_line(data = combined_timepoints_long_low_2_rem_na, aes(x = timepoint, y = freezing_percentage, group = index, color = sex_stress), alpha = 0.3)+
+  geom_errorbar(aes(ymin = mean_freezing - sem_freezing, ymax = mean_freezing + sem_freezing), width = 0.2)+
+  scale_y_continuous(breaks=seq(0,100,10), expand = c(0,0))
+
+reminder_figure_low_rem_na_2 <- reminder_figure_low_rem_na_2 + scale_x_discrete(labels = c("extinction_recall" = "Extinction recall", "reminder_day1_shock"= "Reminder session", "reminder_day2" = "Reminder recall"))
+reminder_figure_low_rem_na_2 <- reminder_figure_low_rem_na_2 + scale_color_manual(labels = c("Female_ELS" = "Female ELS", "Female_NS" = "Female non-stressed", "Male_ELS" = "Male ELS", "Male_NS" = "Male Non-stressed"),values=c("#ff870f", "#ffc182", "#1c20fc", "#b3b4ff"))
+reminder_figure_low_rem_na_2 <- reminder_figure_low_rem_na_2 + labs(x = "Timepoint", y = "Freezing percentage", group = "Group", color = "Group")
+reminder_figure_low_rem_na_2 <- reminder_figure_low_rem_na_2 + blank_figure_theme
+reminder_figure_low_rem_na_2
+
+reminder_figure_low_rem_na_10 <- ggplot(data = combined_timepoints_long_low_10_rem_na_desc, aes(x = timepoint, y = mean_freezing, group = sex_stress, color = sex_stress)) + 
+  geom_line(size = 2)+
+  geom_line(data = combined_timepoints_long_low_10_rem_na, aes(x = timepoint, y = freezing_percentage, group = index, color = sex_stress), alpha = 0.3)+
+  geom_errorbar(aes(ymin = mean_freezing - sem_freezing, ymax = mean_freezing + sem_freezing), width = 0.2)+
+  scale_y_continuous(breaks=seq(0,100,10), expand = c(0,0))
+
+reminder_figure_low_rem_na_10 <- reminder_figure_low_rem_na_10 + scale_x_discrete(labels = c("extinction_recall" = "Extinction recall", "reminder_day1_shock"= "Reminder session", "reminder_day2" = "Reminder recall"))
+reminder_figure_low_rem_na_10 <- reminder_figure_low_rem_na_10 + scale_color_manual(labels = c("Female_ELS" = "Female ELS", "Female_NS" = "Female non-stressed", "Male_ELS" = "Male ELS", "Male_NS" = "Male Non-stressed"),values=c("#ff870f", "#ffc182", "#1c20fc", "#b3b4ff"))
+reminder_figure_low_rem_na_10 <- reminder_figure_low_rem_na_10 + labs(x = "Timepoint", y = "Freezing percentage", group = "Group", color = "Group")
+reminder_figure_low_rem_na_10 <- reminder_figure_low_rem_na_10 + blank_figure_theme
+reminder_figure_low_rem_na_10
+
+reminder_rm_combined_figure_low <- ggarrange(reminder_figure_low_rem_na_2, reminder_figure_low_rem_na_10 + rremove("ylab"), 
+                                          labels = c("2 minute", "10 minute"),
+                                          ncol = 2, nrow = 1)
+
+reminder_rm_combined_figure_low + scale_y_continuous(expand = c(0, 0), limits = c(0, 80))
+reminder_rm_combined_figure_low
+#Combined ext_recall remindershock and reminder recall LOW ########
+
+
+analyse_freezing_longitudinal <- function(dataset, isConditionsplit = FALSE){
+    combined_recall_remshock_remrecall_longformat <- dataset %>% 
+      pivot_longer(cols = c("extinction_recall", "reminder_day1_shock", "reminder_day2"), names_to = "timepoint", values_to = "freezing_percentage")
+
+  #add the ID column
+  combined_recall_remshock_remrecall_longformat$id <- rep(1:nrow(dataset), each = 3)
+  if (isConditionsplit == FALSE){combined_aov_rm_model <- anova_test(data = combined_recall_remshock_remrecall_longformat,
+                                                                     dv = freezing_percentage, wid = id, within = timepoint, between = c(Sex, Stress, Condition))
+  }
+  else{
+    combined_aov_rm_model <- anova_test(data = combined_recall_remshock_remrecall_longformat,
+                                             dv = freezing_percentage, wid = id, within = timepoint, between = c(Sex, Stress))
+  }
+    return(combined_aov_rm_model)
+}
+
+low_aov <- analyse_freezing_longitudinal(complete_ds_low_combined_recall_remshock_remrecall)
+get_anova_table(low_aov)
+
+high_aov <- analyse_freezing_longitudinal(complete_ds_high_combined_recall_remshock_remrecall)
+get_anova_table(high_aov)
+
+
+#Generate the 2 and 10 datasets LOW
+complete_ds_low_combined_recall_remshock_remrecall_2 <- complete_ds_low_combined_recall_remshock_remrecall %>% 
+  filter(Condition == 2)
+complete_ds_low_combined_recall_remshock_remrecall_10 <- complete_ds_low_combined_recall_remshock_remrecall %>% 
+  filter(Condition == 10)
+
+#Generate the 2 and 10 datasets HIGH
+complete_ds_high_combined_recall_remshock_remrecall_2 <- complete_ds_high_combined_recall_remshock_remrecall %>% 
+  filter(Condition == 2)
+complete_ds_high_combined_recall_remshock_remrecall_10 <- complete_ds_high_combined_recall_remshock_remrecall %>% 
+  filter(Condition == 10)
+
+
+# Run the anovas again LOW
+low_aov_2 <- analyse_freezing_longitudinal(complete_ds_low_combined_recall_remshock_remrecall_2, isConditionsplit = TRUE)
+get_anova_table(low_aov_2)
+
+low_aov_10 <- analyse_freezing_longitudinal(complete_ds_low_combined_recall_remshock_remrecall_10, isConditionsplit = TRUE)
+get_anova_table(low_aov_10)
+
+# Run the anovas again HIGH
+high_aov_2 <- analyse_freezing_longitudinal(complete_ds_high_combined_recall_remshock_remrecall_2, isConditionsplit = TRUE)
+get_anova_table(high_aov_2)
+
+high_aov_10 <- analyse_freezing_longitudinal(complete_ds_high_combined_recall_remshock_remrecall_10, isConditionsplit = TRUE)
+get_anova_table(high_aov_10)
