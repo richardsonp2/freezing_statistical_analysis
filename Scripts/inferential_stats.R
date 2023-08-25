@@ -153,6 +153,97 @@ Anova(high_ten_min_extinction_model)
 
 
 
+#### Individual 10 minute splits: 
+# LOW
+ten_minute_extinction_low_ELS_M <- ten_minute_extinction_low %>% 
+  filter(Stress == "ELS" & Sex == "Male")
+
+ten_minute_extinction_low_long_ELS_M <- ten_minute_extinction_low_ELS_M %>% 
+  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+  droplevels()
+
+low_ten_min_extinction_model_ELS_M <- lm(data = ten_minute_extinction_low_long_ELS_M, percentage ~ timepoint)
+summary(low_ten_min_extinction_model_ELS_M)
+Anova(low_ten_min_extinction_model_ELS_M)
+
+ten_minute_extinction_low_NS_M <- ten_minute_extinction_low %>% 
+  filter(Stress == "NS" & Sex == "Male")
+
+ten_minute_extinction_low_long_NS_M <- ten_minute_extinction_low_NS_M %>% 
+  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+  droplevels()
+
+low_ten_min_extinction_model_NS_M <- lm(data = ten_minute_extinction_low_long_NS_M, percentage ~ timepoint)
+summary(low_ten_min_extinction_model_NS_M)
+Anova(low_ten_min_extinction_model_NS_M)
+
+ten_minute_extinction_low_ELS_F <- ten_minute_extinction_low %>% 
+  filter(Stress == "ELS" & Sex == "Female")
+
+ten_minute_extinction_low_long_ELS_F <- ten_minute_extinction_low_ELS_F %>% 
+  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+  droplevels()
+
+low_ten_min_extinction_model_ELS_F <- lm(data = ten_minute_extinction_low_long_ELS_F, percentage ~ timepoint)
+summary(low_ten_min_extinction_model_ELS_F)
+Anova(low_ten_min_extinction_model_ELS_F)
+
+ten_minute_extinction_low_NS_F <- ten_minute_extinction_low %>% 
+  filter(Stress == "NS" & Sex == "Female")
+
+ten_minute_extinction_low_long_NS_F <- ten_minute_extinction_low_NS_F %>% 
+  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+  droplevels()
+
+low_ten_min_extinction_model_NS_F <- lm(data = ten_minute_extinction_low_long_NS_F, percentage ~ timepoint)
+summary(low_ten_min_extinction_model_NS_F)
+Anova(low_ten_min_extinction_model_NS_F)
+
+
+# HIGH
+ten_minute_extinction_high_ELS_M <- ten_minute_extinction_high %>% 
+  filter(Stress == "ELS" & Sex == "Male")
+
+ten_minute_extinction_high_long_ELS_M <- ten_minute_extinction_high_ELS_M %>% 
+  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+  droplevels()
+
+high_ten_min_extinction_model_ELS_M <- lm(data = ten_minute_extinction_high_long_ELS_M, percentage ~ timepoint)
+summary(high_ten_min_extinction_model_ELS_M)
+Anova(high_ten_min_extinction_model_ELS_M)
+
+ten_minute_extinction_high_NS_M <- ten_minute_extinction_high %>% 
+  filter(Stress == "NS" & Sex == "Male")
+
+ten_minute_extinction_high_long_NS_M <- ten_minute_extinction_high_NS_M %>% 
+  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+  droplevels()
+
+high_ten_min_extinction_model_NS_M <- lm(data = ten_minute_extinction_high_long_NS_M, percentage ~ timepoint)
+summary(high_ten_min_extinction_model_NS_M)
+Anova(high_ten_min_extinction_model_NS_M)
+
+ten_minute_extinction_high_ELS_F <- ten_minute_extinction_high %>% 
+  filter(Stress == "ELS" & Sex == "Female")
+
+ten_minute_extinction_high_long_ELS_F <- ten_minute_extinction_high_ELS_F %>% 
+  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+  droplevels()
+
+high_ten_min_extinction_model_ELS_F <- lm(data = ten_minute_extinction_high_long_ELS_F, percentage ~ timepoint)
+summary(high_ten_min_extinction_model_ELS_F)
+Anova(high_ten_min_extinction_model_ELS_F)
+
+ten_minute_extinction_high_NS_F <- ten_minute_extinction_high %>% 
+  filter(Stress == "NS" & Sex == "Female")
+
+ten_minute_extinction_high_long_NS_F <- ten_minute_extinction_high_NS_F %>% 
+  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+  droplevels()
+
+high_ten_min_extinction_model_NS_F <- lm(data = ten_minute_extinction_high_long_NS_F, percentage ~ timepoint)
+summary(high_ten_min_extinction_model_NS_F)
+Anova(high_ten_min_extinction_model_NS_F)
 
 #### HIGH extinction recall (recall_1) 
 recall_1_high <- complete_ds_high %>% 
@@ -762,6 +853,8 @@ summary(reminder_recall_lm)
 aov_reminder_recall <- aov(reminder_recall_lm)
 summary(aov_reminder_recall)
 
+posthocPairwiseT(aov_reminder_recall)
+
 #individual t tests conducted assess each group 
 # M ELS
 m_els_ds_rem_recall_low <- reminder_recall_low %>% 
@@ -818,6 +911,12 @@ summary(reminder_recall_lm)
 aov_reminder_recall <- aov(reminder_recall_lm)
 summary(aov_reminder_recall)
 
+#removeNA values
+reminder_recall_high <- na.omit(reminder_recall_high)
+
+means_to_check_recall <- reminder_recall_high %>% 
+  group_by(Stress) %>% 
+  summarise(mean = mean(reminder_day2))
 #individual t tests conducted assess each group 
 # M ELS
 m_els_ds_rem_recall_high <- reminder_recall_high %>% 
