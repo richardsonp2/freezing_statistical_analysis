@@ -1102,31 +1102,66 @@ reminder_rm_combined_figure_low <- ggarrange(reminder_figure_low_rem_na_2, remin
 
 reminder_rm_combined_figure_low + scale_y_continuous(expand = c(0, 0), limits = c(0, 80))
 reminder_rm_combined_figure_low
-#Combined ext_recall remindershock and reminder recall LOW ########
 
+# ANALYSIS FOR KERRIES EMAIL 25/08/23 ########
+complete_ds_2_low
+complete_ds_2_high
+complete_ds_10_low
+complete_ds_10_high
 
-analyse_freezing_longitudinal <- function(dataset, isConditionsplit = FALSE){
-    combined_recall_remshock_remrecall_longformat <- dataset %>% 
-      pivot_longer(cols = c("extinction_recall", "reminder_day1_shock", "reminder_day2"), names_to = "timepoint", values_to = "freezing_percentage")
+# dataset_selected <- complete_ds_2_low %>% 
+#   select("Sex", "Stress", "recall_1","extinction_recall", "reminder_day1_shock", "reminder_day2")
+# 
+# factor_cols <- c("Sex", "Stress")
+# dataset_selected[factor_cols] <- lapply(dataset_selected[factor_cols], factor)
+# dataset_longformat <- dataset_selected %>% 
+#   pivot_longer(cols = c("recall_1","extinction_recall", "reminder_day1_shock", "reminder_day2"), names_to = "timepoint", values_to = "freezing_percentage")
+# 
+# #add the ID column
+# dataset_longformat$id <- rep(1:nrow(complete_ds_2_low), each = 4)
+# aov_rm_model <- anova_test(data = dataset_longformat,dv = freezing_percentage, wid = id, within = timepoint, between = c(Sex, Stress))
+# aov_rm_model
 
-  #add the ID column
-  combined_recall_remshock_remrecall_longformat$id <- rep(1:nrow(dataset), each = 3)
-  if (isConditionsplit == FALSE){combined_aov_rm_model <- anova_test(data = combined_recall_remshock_remrecall_longformat,
-                                                                     dv = freezing_percentage, wid = id, within = timepoint, between = c(Sex, Stress, Condition))
+make_longitudinal <- function(dataset, isConditionsplit = FALSE, isRecallOnly = FALSE){
+  #factor_cols <- c("Sex", "Stress")
+  #dataset_selected[factor_cols] <- lapply(dataset_selected[factor_cols], factor)
+  
+  if (isRecallOnly == TRUE) {
+    dataset_selected <- dataset %>% 
+      select("Sex", "Stress", "recall_1","extinction_recall")
+    dataset_longformat <- dataset_selected %>% 
+      pivot_longer(cols = c("recall_1","extinction_recall"), names_to = "timepoint", values_to = "freezing_percentage")
+    dataset_longformat$id <- rep(1:nrow(dataset), each = 2)
+    
   }
-  else{
-    combined_aov_rm_model <- anova_test(data = combined_recall_remshock_remrecall_longformat,
-                                             dv = freezing_percentage, wid = id, within = timepoint, between = c(Sex, Stress))
+  else if (isRecallOnly == FALSE){
+    dataset_selected <- dataset %>% 
+      select("Sex", "Stress", "recall_1","extinction_recall", "reminder_day1_shock", "reminder_day2")
+    dataset_longformat <- dataset_selected %>% 
+      pivot_longer(cols = c("recall_1","extinction_recall", "reminder_day1_shock", "reminder_day2"), names_to = "timepoint", values_to = "freezing_percentage")
+    dataset_longformat$id <- rep(1:nrow(dataset), each = 4)
   }
-    return(combined_aov_rm_model)
+  return(dataset_longformat)
 }
 
-low_aov <- analyse_freezing_longitudinal(complete_ds_low_combined_recall_remshock_remrecall)
-get_anova_table(low_aov)
 
-high_aov <- analyse_freezing_longitudinal(complete_ds_high_combined_recall_remshock_remrecall)
-get_anova_table(high_aov)
 
+analyse_freezing_longitudinal <- function(dataset, isConditionsplit = FALSE, isRecallOnly = FALSE){
+  
+  long_dataset <- make_longitudinal(dataset)
+  #aov_rm_model <- anova_test(data = dataset_longformat,dv = freezing_percentage, wid = id, within = timepoint, between = c(Sex, Stress))
+  aov_rm_model <- aov(freezing_percentage ~ timepoint*Sex*Stress + Error(id/(timepoint*Sex*Stress)), data = long_dataset)
+  return(aov_rm_model)
+}
+
+complete_ds_low_combined_recall_remshock_remrecall <- complete_ds_low %>% 
+  select(c("Stress","Sex", "Condition", "recall_1", "extinction_recall", "reminder_day1_shock", "reminder_day2")) 
+complete_ds_low_combined_recall_remshock_remrecall_noNA <- complete_ds_low_combined_recall_remshock_remrecall[complete.cases(complete_ds_low_combined_recall_remshock_remrecall), ]
+
+
+complete_ds_high_combined_recall_remshock_remrecall <- complete_ds_high %>% 
+  select(c("Stress","Sex", "Condition", "recall_1", "extinction_recall", "reminder_day1_shock", "reminder_day2")) 
+complete_ds_high_combined_recall_remshock_remrecall_noNA <- complete_ds_high_combined_recall_remshock_remrecall[complete.cases(complete_ds_high_combined_recall_remshock_remrecall), ]
 
 #Generate the 2 and 10 datasets LOW
 complete_ds_low_combined_recall_remshock_remrecall_2 <- complete_ds_low_combined_recall_remshock_remrecall %>% 
@@ -1143,14 +1178,56 @@ complete_ds_high_combined_recall_remshock_remrecall_10 <- complete_ds_high_combi
 
 # Run the anovas again LOW
 low_aov_2 <- analyse_freezing_longitudinal(complete_ds_low_combined_recall_remshock_remrecall_2, isConditionsplit = TRUE)
+low_aov_2
 get_anova_table(low_aov_2)
 
 low_aov_10 <- analyse_freezing_longitudinal(complete_ds_low_combined_recall_remshock_remrecall_10, isConditionsplit = TRUE)
+low_aov_10
 get_anova_table(low_aov_10)
+# Here there is a stress by timepoint interaction 
+#data = dataset_longformat,dv = freezing_percentage, wid = id, within = timepoint, between = c(Sex, Stress)
+#lme(freezing_percentage ~ timepoint, random = ~1|id/timepoint, data=Mice)
 
-# Run the anovas again HIGH
+    
+    # Run the anovas again HIGH
 high_aov_2 <- analyse_freezing_longitudinal(complete_ds_high_combined_recall_remshock_remrecall_2, isConditionsplit = TRUE)
+high_aov_2
 get_anova_table(high_aov_2)
 
 high_aov_10 <- analyse_freezing_longitudinal(complete_ds_high_combined_recall_remshock_remrecall_10, isConditionsplit = TRUE)
+high_aov_10
 get_anova_table(high_aov_10)
+
+
+
+#TRY ANOVAS WHERE ONLY LOOKING AT THE FIRST TWO TIMEPOINTS IE RECALL AND EXT RECALL
+
+
+
+high_aov_2_recallonly <- analyse_freezing_longitudinal(complete_ds_high_combined_recall_remshock_remrecall_2, isConditionsplit = TRUE, isRecallOnly = TRUE)
+high_aov_2_recallonly
+summary(high_aov_2_recallonly)
+
+high_aov_10_recallonly <- analyse_freezing_longitudinal(complete_ds_high_combined_recall_remshock_remrecall_10, isConditionsplit = TRUE, isRecallOnly = TRUE)
+high_aov_10_recallonly
+summary(high_aov_10_recallonly)
+
+
+
+
+
+
+# Assuming your original dataset is named `dataset_longformat`
+M_ELS_data <- make_longitudinal(subset(complete_ds_high_combined_recall_remshock_remrecall_10, Sex == "Male" & Stress == "ELS"))
+M_NS_data <- make_longitudinal(subset(complete_ds_high_combined_recall_remshock_remrecall_10, Sex == "Male" & Stress == "NS"))
+F_ELS_data <- make_longitudinal(subset(complete_ds_high_combined_recall_remshock_remrecall_10, Sex == "Female" & Stress == "ELS"))
+F_NS_data <- make_longitudinal(subset(complete_ds_high_combined_recall_remshock_remrecall_10, Sex == "Female" & Stress == "NS"))
+
+M_ELS_aov <- aov(freezing_percentage ~ timepoint + Error(id/(timepoint)), data = M_ELS_data)
+summary(M_ELS_aov)
+M_NS_aov <-  aov(freezing_percentage ~ timepoint + Error(id/(timepoint)), data = M_NS_data)
+summary(M_NS_aov)
+F_ELS_aov <- aov(freezing_percentage ~ timepoint + Error(id/(timepoint)), data = F_ELS_data)
+summary(F_ELS_aov)
+F_NS_aov <-  aov(freezing_percentage ~ timepoint + Error(id/(timepoint)), data = F_NS_data)
+summary(F_NS_aov)

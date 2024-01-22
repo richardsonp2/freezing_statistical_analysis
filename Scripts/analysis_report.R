@@ -1,4 +1,3 @@
-library(MASS)
 library(tidyverse)
 library(ggsignif)
 library(ggpubr)
@@ -679,120 +678,74 @@ combined_extinction_recall
 
 ggsave("Extinction_recall_chart.png", plot = combined_extinction_recall, path = "./combined")
 #Reminder with shock HIGH ######################################################
-
-reminder_shock_high_descr <- reminder_shock_high %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress, c(Sex, Stress), remove=FALSE) %>%
-  unite(sex_stress_condition, c(Sex, Stress, Condition), remove = FALSE)
-
-reminder_shock_high_indivpoints <- reminder_shock_high %>%
-  drop_na() %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress_condition, c(Sex,Stress,Condition), remove = FALSE) %>%
-  unite(sex_stress, c(Sex, Stress), remove = FALSE)
-
-reminder_shock_high_descr$sex_stress <- as.factor(reminder_shock_high_descr$sex_stress)
-reminder_shock_high_descr$reminder_day1_shock <- as.numeric(reminder_shock_high_descr$reminder_day1_shock)
-reminder_shock_high_indivpoints$reminder_day1_shock <- as.numeric(reminder_shock_high_indivpoints$reminder_day1_shock)
-reminder_shock_high_descr$sex_stress <- factor(reminder_shock_high_descr$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
-
-reminder_shock_high_descr <- reminder_shock_high_descr %>%
-  group_by(sex_stress, Condition, Sex, Stress, figures_sex, sex_stress_condition) %>%
-  summarize(mean_reminder_shock_high = mean(reminder_day1_shock, na.rm = TRUE), sem_reminder_shock_high = sd(reminder_day1_shock, na.rm = TRUE)/sqrt(length(reminder_day1_shock)))
-write.csv(reminder_shock_high_descr, file = "./High/Descriptives/reminder_shock_high_descr.csv")
-
-# to find the n's for each group
-reminder_shock_high_count <- reminder_shock_high %>%
-  unite(sex_stress, c(Sex, Stress), remove = FALSE) %>%
-  group_by(sex_stress,Condition) %>%
-  count()
-
-reminder_shock_high_indivpoints$sex_stress <- factor(reminder_shock_high_indivpoints$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
-bar_chart_reminder_shock_high$sex_stress <- factor(bar_chart_reminder_shock_high$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
-
-
-bar_chart_reminder_shock_high <- ggplot(reminder_shock_high_indivpoints, aes(x = sex_stress, y = reminder_day1_shock,  fill = Condition))
-
-bar_chart_reminder_shock_high <- bar_chart_reminder_shock_high +
-  geom_boxplot()+
-  #geom_errorbar(stat = "summary", position = position_dodge(width = 0.9), width = 0.5) +
-  scale_y_continuous(breaks=seq(0,100,10), expand = c(0.025,0))+
-  coord_cartesian(ylim = c(0, 100)) +
-  geom_point(aes(x = sex_stress, y = reminder_day1_shock), position =
-               position_jitterdodge(jitter.width = 0.4, jitter.height=0.1,
-                                    dodge.width=0.9), alpha = 0.6, set.seed(42)) +
-  #scale_fill_manual(values = c('black','black'))+
-  facet_wrap(~figures_sex, strip.position = "bottom", scales = "free_x")+
-  stat_summary(aes(x = sex_stress, y = reminder_day1_shock, group = Condition), fun = mean, geom = "point", shape = 21, size = 4, fill = "#FF00FF", color = "black", position = position_dodge(width = 0.9))
-
-
-bar_chart_reminder_shock_high <- bar_chart_reminder_shock_high + scale_x_discrete(labels = c("Male_ELS" = sprintf("ELS\n n = %s        n = %s", reminder_shock_high_count[5,3],reminder_shock_high_count[6,3]), "Male_NS" = sprintf( "NS\n n = %s        n = %s", reminder_shock_high_count[7,3],reminder_shock_high_count[8,3]),"Female_ELS" = sprintf("ELS\n n = %s        n = %s", reminder_shock_high_count[1,3],reminder_shock_high_count[2,3]), "Female_NS"= sprintf( "NS\n n = %s        n = %s", reminder_shock_high_count[3,3],reminder_shock_high_count[4,3])))
-bar_chart_reminder_shock_high <- bar_chart_reminder_shock_high + scale_fill_manual(values = extinction_colors)
-bar_chart_reminder_shock_high <- bar_chart_reminder_shock_high + labs(title = "High intensity shock", x = NULL, y = NULL, fill = "Condition")
-bar_chart_reminder_shock_high <- bar_chart_reminder_shock_high + blank_figure_theme
-bar_chart_reminder_shock_high
+reminder_shock_figure <- function(database){
+  #' here database is either reminder_shock_low or reminder_shock_high
+  #' 
+  reminder_shock_descr <- database %>%
+    mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
+    unite(sex_stress, c(Sex, Stress), remove=FALSE) %>%
+    unite(sex_stress_condition, c(Sex, Stress, Condition), remove = FALSE)
+  
+  reminder_shock_indivpoints <- database %>%
+    drop_na() %>%
+    mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
+    unite(sex_stress_condition, c(Sex,Stress,Condition), remove = FALSE) %>%
+    unite(sex_stress, c(Sex, Stress), remove = FALSE)
+  
+  reminder_shock_descr$sex_stress <- as.factor(reminder_shock_descr$sex_stress)
+  reminder_shock_descr$reminder_day1_shock <- as.numeric(reminder_shock_descr$reminder_day1_shock)
+  reminder_shock_indivpoints$reminder_day1_shock <- as.numeric(reminder_shock_indivpoints$reminder_day1_shock)
+  reminder_shock_descr$sex_stress <- factor(reminder_shock_descr$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
+  
+  reminder_shock_descr <- reminder_shock_descr %>%
+    group_by(sex_stress, Condition, Sex, Stress, figures_sex, sex_stress_condition) %>%
+    summarize(mean_reminder_shock_low = mean(reminder_day1_shock, na.rm = TRUE), sem_reminder_shock_low = sd(reminder_day1_shock, na.rm = TRUE)/sqrt(length(reminder_day1_shock)))
+  
+  # to find the n's for each group
+  reminder_shock_count <- reminder_shock_low %>%
+    group_by(Sex,Stress,Condition) %>%
+    count()
+  
+  
+  reminder_shock_indivpoints$sex_stress <- factor(reminder_shock_indivpoints$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
+  reminder_shock_indivpoints$sex_stress <- factor(reminder_shock_indivpoints$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
+  
+  
+  
+  bar_chart_reminder_shock <- ggplot(reminder_shock_indivpoints, aes(x = sex_stress, y = reminder_day1_shock,  fill = Condition))
+  
+  bar_chart_reminder_shock <- bar_chart_reminder_shock +
+    geom_boxplot()+
+    #geom_errorbar(stat = "summary", position = position_dodge(width = 0.9), width = 0.5) +
+    scale_y_continuous(breaks=seq(0,100,10), expand = c(0.025,0))+
+    coord_cartesian(ylim = c(0, 100)) +
+    geom_point(aes(x = sex_stress, y = reminder_day1_shock), position =
+                 position_jitterdodge(jitter.width = 0.4, jitter.height=0.1,
+                                      dodge.width=0.9), alpha = 0.6, set.seed(42)) +
+    #scale_fill_manual(values = c('black','black'))+
+    facet_wrap(~figures_sex, strip.position = "bottom", scales = "free_x")+
+    stat_summary(aes(x = sex_stress, y = reminder_day1_shock, group = Condition), fun = mean, geom = "point", shape = 21, size = 4, fill = "#FF00FF", color = "black", position = position_dodge(width = 0.9))
+  
+  
+  bar_chart_reminder_shock <- bar_chart_reminder_shock + scale_x_discrete(labels = c("Male_ELS" = sprintf("ELS\n n = %s        n = %s", reminder_shock_count[5,4],reminder_shock_count[6,4]), "Male_NS" = sprintf( "NS\n n = %s        n = %s", reminder_shock_count[7,4],reminder_shock_count[8,4]),"Female_ELS" = sprintf("ELS\n n = %s        n = %s", reminder_shock_count[1,4],reminder_shock_count[2,4]), "Female_NS"= sprintf( "NS\n n = %s        n = %s", reminder_shock_count[3,4],reminder_shock_count[4,4])))
+  bar_chart_reminder_shock <- bar_chart_reminder_shock + scale_fill_manual(values = extinction_colors)
+  bar_chart_reminder_shock <- bar_chart_reminder_shock + blank_figure_theme
+  return(bar_chart_reminder_shock)
+}
+low_reminder_shock_figure <- reminder_shock_figure(reminder_shock_low)
+high_reminder_shock_figure <- reminder_shock_figure(reminder_shock_high)
+low_reminder_shock_figure
+high_reminder_shock_figure
 ggsave("reminder_shock_high.png", plot = bar_chart_reminder_shock_high, path = "./High/Figures/")
 
 
 #Reminder with shock LOW #######################################################
-reminder_shock_low_descr <- reminder_shock_low %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress, c(Sex, Stress), remove=FALSE) %>%
-  unite(sex_stress_condition, c(Sex, Stress, Condition), remove = FALSE)
-
-reminder_shock_low_indivpoints <- reminder_shock_low %>%
-  drop_na() %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress_condition, c(Sex,Stress,Condition), remove = FALSE) %>%
-  unite(sex_stress, c(Sex, Stress), remove = FALSE)
-
-reminder_shock_low_descr$sex_stress <- as.factor(reminder_shock_low_descr$sex_stress)
-reminder_shock_low_descr$reminder_day1_shock <- as.numeric(reminder_shock_low_descr$reminder_day1_shock)
-reminder_shock_low_indivpoints$reminder_day1_shock <- as.numeric(reminder_shock_low_indivpoints$reminder_day1_shock)
-reminder_shock_low_descr$sex_stress <- factor(reminder_shock_low_descr$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
-
-reminder_shock_low_descr <- reminder_shock_low_descr %>%
-  group_by(sex_stress, Condition, Sex, Stress, figures_sex, sex_stress_condition) %>%
-  summarize(mean_reminder_shock_low = mean(reminder_day1_shock, na.rm = TRUE), sem_reminder_shock_low = sd(reminder_day1_shock, na.rm = TRUE)/sqrt(length(reminder_day1_shock)))
-write.csv(reminder_shock_low_descr, file = "./Low/Descriptives/reminder_shock_low_descr.csv")
-
-# to find the n's for each group
-reminder_shock_low_count <- reminder_shock_low %>%
-  group_by(Sex,Stress,Condition) %>%
-  count()
 
 
-reminder_shock_low_indivpoints$sex_stress <- factor(reminder_shock_low_indivpoints$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
-reminder_shock_low_indivpoints$sex_stress <- factor(reminder_shock_low_indivpoints$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
-
-
-
-bar_chart_reminder_shock_low <- ggplot(reminder_shock_low_indivpoints, aes(x = sex_stress, y = reminder_day1_shock,  fill = Condition))
-
-bar_chart_reminder_shock_low <- bar_chart_reminder_shock_low +
-  geom_boxplot()+
-  #geom_errorbar(stat = "summary", position = position_dodge(width = 0.9), width = 0.5) +
-  scale_y_continuous(breaks=seq(0,100,10), expand = c(0.025,0))+
-  coord_cartesian(ylim = c(0, 100)) +
-  geom_point(aes(x = sex_stress, y = reminder_day1_shock), position =
-               position_jitterdodge(jitter.width = 0.4, jitter.height=0.1,
-                                    dodge.width=0.9), alpha = 0.6, set.seed(42)) +
-  #scale_fill_manual(values = c('black','black'))+
-  facet_wrap(~figures_sex, strip.position = "bottom", scales = "free_x")+
-  stat_summary(aes(x = sex_stress, y = reminder_day1_shock, group = Condition), fun = mean, geom = "point", shape = 21, size = 4, fill = "#FF00FF", color = "black", position = position_dodge(width = 0.9))
-
-
-bar_chart_reminder_shock_low <- bar_chart_reminder_shock_low + scale_x_discrete(labels = c("Male_ELS" = sprintf("ELS\n n = %s        n = %s", reminder_shock_low_count[5,4],reminder_shock_low_count[6,4]), "Male_NS" = sprintf( "NS\n n = %s        n = %s", reminder_shock_low_count[7,4],reminder_shock_low_count[8,4]),"Female_ELS" = sprintf("ELS\n n = %s        n = %s", reminder_shock_low_count[1,4],reminder_shock_low_count[2,4]), "Female_NS"= sprintf( "NS\n n = %s        n = %s", reminder_shock_low_count[3,4],reminder_shock_low_count[4,4])))
-bar_chart_reminder_shock_low <- bar_chart_reminder_shock_low + scale_fill_manual(values = extinction_colors)
-bar_chart_reminder_shock_low <- bar_chart_reminder_shock_low + labs(title = "Low intensity shock", x = NULL, y = NULL, fill = "Condition")
-bar_chart_reminder_shock_low <- bar_chart_reminder_shock_low + blank_figure_theme
-bar_chart_reminder_shock_low
-
-combined_reminder_shock <- ggarrange(bar_chart_reminder_shock_low, bar_chart_reminder_shock_high, ncol=2, nrow=1, labels = "auto", common.legend = TRUE,legend = "bottom")
+combined_reminder_shock <- ggarrange(low_reminder_shock_figure, high_reminder_shock_figure, ncol=2, nrow=1, labels = "auto", common.legend = TRUE,legend = "bottom")
 combined_reminder_shock <- combined_reminder_shock <- my_annotate_figure_function(figure = combined_reminder_shock, title_text = NULL)
 combined_reminder_shock <- annotate_figure(combined_reminder_shock, left = textGrob("Freezing percentage", rot = 90, vjust = 1,hjust= 0.3, gp = gpar(cex = 1.3)))
 combined_reminder_shock
-
 
 
 #Reminder recall HIGH ##########################################################
@@ -842,7 +795,7 @@ reminder_recall_figure <- function(dataset){
   
   bar_chart_reminder_recall <- bar_chart_reminder_recall + scale_x_discrete(labels = c("Male_ELS" = sprintf("ELS\n n = %s        n = %s", reminder_recall_count[5,3],reminder_recall_count[6,3]), "Male_NS" = sprintf( "NS\n n = %s        n = %s", reminder_recall_count[7,3],reminder_recall_count[8,3]),"Female_ELS" = sprintf("ELS\n n = %s        n = %s", reminder_recall_count[1,3],reminder_recall_count[2,3]), "Female_NS"= sprintf( "NS\n n = %s        n = %s", reminder_recall_count[3,3],reminder_recall_count[4,3])))
   bar_chart_reminder_recall <- bar_chart_reminder_recall + scale_fill_manual(values = extinction_colors)
-  bar_chart_reminder_recall <- bar_chart_reminder_recall + labs(title = "High intensity shock", x = NULL, y = NULL, fill = "Condition")
+  bar_chart_reminder_recall <- bar_chart_reminder_recall + labs(x = NULL, y = NULL, fill = "Condition")
   bar_chart_reminder_recall <- bar_chart_reminder_recall + blank_figure_theme
   return(bar_chart_reminder_recall)
   
@@ -851,18 +804,10 @@ reminder_recall_figure <- function(dataset){
 low_reminder_recall_figure <- reminder_recall_figure(reminder_recall_low)
 high_reminder_recall_figure <- reminder_recall_figure(reminder_recall_high)
 
-combined_reminder_recall <- ggarrange(bar_chart_reminder_recall_low, bar_chart_reminder_recall_high, ncol=2, nrow=1, labels = "auto", common.legend = TRUE,legend = "bottom")
+combined_reminder_recall <- ggarrange(low_reminder_recall_figure, high_reminder_recall_figure, ncol=2, nrow=1, common.legend = TRUE,legend = "bottom")
 combined_reminder_recall <- combined_reminder_recall <- my_annotate_figure_function(figure = combined_reminder_recall, title_text = NULL)
 combined_reminder_recall <- annotate_figure(combined_reminder_recall, left = textGrob("Freezing percentage", rot = 90, vjust = 1,hjust= 0.3, gp = gpar(cex = 1.3)))
 combined_reminder_recall
-
-
-
-# HIGH combined figure
-
-
-#needs to be wide to include all three plots
-ggsave("Combined_reminder_figure.png", plot =reminder_combined_figure, path = "./High/Figures/", width = 5050, height = 1000, unit = "px")
 
 
 #### Low intensity shock ----------------------------------------------------------------
@@ -1305,9 +1250,9 @@ plot_grid(longplot2, longplot10full, labels = "AUTO", rel_widths = c(1,1))
 ###### NEW KERRIE SUGGESTED FIGURES ####################################
 
 #two_minute_combined_descriptives <- read.csv("./Datasets/twoMinuteCombinedDescriptives.csv")
-two_min_long_figure_function <- function(dataset){
+long_figure_function <- function(dataset, isLabeled = TRUE){
   two_minute_descriptives <- dataset %>%
-  select("Stress", "Sex", "recall_1",c(13:15)) %>% 
+  select(Stress, Sex, recall_1, c(13:15)) %>% 
   mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
   unite(sex_stress, c(figures_sex, Stress), remove=FALSE) %>% 
   group_by(sex_stress) %>% 
@@ -1335,28 +1280,40 @@ longplot_4points <- ggplot(two_minute_descriptives, aes(x = Timepoint, y = mean_
   geom_line(size = 0.8)+
   geom_errorbar(aes(ymin=mean_values-sem_values, ymax=mean_values+sem_values), width=.2, alpha = 0.7)+
   ylim(0,80)
-longplot_4points
 
-longplot_4points <- longplot_4points + scale_color_manual(labels = c( "Male_ELS" = "Male ELS",  "Male_NS" = "Male non-stressed" , "Female_ELS" = "Female ELS",  "Female_NS"= "Female non-stressed"),values=c(Male_ELS = "#1c20fc", Male_NS = "#b3b4ff", Female_ELS = "#ff870f", Female_NS ="#ffc182"))
-longplot_4points <- longplot_4points + scale_x_discrete(labels = c("shockrecall" = "Shock recall", "extrecall"= "Extinction recall", "remtest" = "reminder test", "remrecall" = "Reminder Recall"))
-#longplot2 <- longplot2 + theme(legend.position = "none")
+  # Formatting 
+  longplot_4points <- longplot_4points + blank_figure_theme
+
+if (isLabeled == TRUE) {
+  longplot_4points <- longplot_4points + scale_color_manual(labels = c( "Male_ELS" = "Male ELS",  "Male_NS" = "Male non-stressed" , "Female_ELS" = "Female ELS",  "Female_NS"= "Female non-stressed"),values=c(Male_ELS = "#1c20fc", Male_NS = "#b3b4ff", Female_ELS = "#ff870f", Female_NS ="#ffc182"))
+  longplot_4points <- longplot_4points + scale_x_discrete(labels = c("shockrecall" = "Shock recall", "extrecall"= "Extinction recall", "remtest" = "reminder test", "remrecall" = "Reminder Recall"))
+  
+}
+else if (isLabeled == FALSE) {
+  longplot_4points <- longplot_4points + scale_color_manual(labels = c( "Male_ELS" = "Male ELS",  "Male_NS" = "Male non-stressed" , "Female_ELS" = "Female ELS",  "Female_NS"= "Female non-stressed"),values=c(Male_ELS = "#1c20fc", Male_NS = "#b3b4ff", Female_ELS = "#ff870f", Female_NS ="#ffc182"))
+  longplot_4points <- longplot_4points + scale_x_discrete(labels = c("shockrecall" = "CFC recall", "extrecall"= "Extinction recall", "remtest" = "Reminder test", "remrecall" = "Reminder recall"))
+  longplot_4points <- longplot_4points + labs(x = NULL, y = NULL, fill = NULL, color = NULL)
+  longplot_4points <- longplot_4points + theme(legend.position = "none")
+}
+
 return (longplot_4points)
 }
-low_2extcont_long_figure <- two_min_long_figure_function(complete_ds_2_low)
-high_2extcont_long_figure <- two_min_long_figure_function(complete_ds_2_high)
-low_2extcont_long_figure
-high_2extcont_long_figure
 
-low_10exttrain_long_figure <- two_min_long_figure_function(complete_ds_10_low)
-low_10exttrain_long_figure
 
-high_10exttrain_long_figure <- two_min_long_figure_function(complete_ds_10_high)
-high_10exttrain_long_figure
+low_2extcont_long_figure <- long_figure_function(complete_ds_2_low, isLabeled = FALSE)
+high_2extcont_long_figure <- long_figure_function(complete_ds_2_high, isLabeled = FALSE)
 
-ggarrange(low_2extcont_long_figure, low_10exttrain_long_figure,
-          high_2extcont_long_figure,  high_10exttrain_long_figure, 
-          labels = c("LOW NO EXT", "LOW WITH EXT", "HIGH NO EXT", "HIGH WITH EXT" ),
+low_10exttrain_long_figure <- long_figure_function(complete_ds_10_low, isLabeled = FALSE)
+high_10exttrain_long_figure <- long_figure_function(complete_ds_10_high, isLabeled = FALSE)
+
+
+combined_210_figure <- ggarrange(low_2extcont_long_figure, low_10exttrain_long_figure,
+                                 high_2extcont_long_figure,  high_10exttrain_long_figure, 
+          labels = c("Low shock,\nextinction control", "Low shock, \nextinction trained",
+                     "High shock, \nextinction control", "High shock, \nextinction trained"),
           ncol = 2, nrow = 2)
+
+combined_210_figure
 #Recall reminder shock and reminder recall #####################################
 
 complete_ds_low_combined_recall_remshock_remrecall <- complete_ds_low %>% 
