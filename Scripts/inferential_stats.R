@@ -173,131 +173,99 @@ Anova(high_ten_min_extinction_model)
 
 
 
-#### Individual 10 minute splits: 
-# LOW
+#### Individual 10 minute RM examinations: 
 
-filter_pivot_individual_function <- function(dataset){
+filter_pivot_individual_function <- function(dataset, stress_condition = "ELS", sex = "Male"){
+  filtered_stress_sex <- dataset %>% 
+    filter(Stress == stress_condition & Sex == sex)
   
+  filtered_stress_sex_long <- filtered_stress_sex %>% 
+    pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+    droplevels()
+  return(filtered_stress_sex_long)
+}
+# Generate the long datasets with the function above
+# long_ten_ELS_Male_low <- filter_pivot_individual_function(ten_minute_extinction_low, "ELS", "Male")
+# long_ten_NS_Male_low <- filter_pivot_individual_function(ten_minute_extinction_low, "NS", "Male")
+# long_ten_ELS_Female_low <- filter_pivot_individual_function(ten_minute_extinction_low, "ELS", "Female")
+# long_ten_NS_Female_low <- filter_pivot_individual_function(ten_minute_extinction_low, "NS", "Female")
+# 
+# long_ten_ELS_Male_low <- filter_pivot_individual_function(ten_minute_extinction_low, "ELS", "Male")
+# long_ten_NS_Male_low <- filter_pivot_individual_function(ten_minute_extinction_low, "NS", "Male")
+# long_ten_ELS_Female_low <- filter_pivot_individual_function(ten_minute_extinction_low, "ELS", "Female")
+# long_ten_NS_Female_low <- filter_pivot_individual_function(ten_minute_extinction_low, "NS", "Female")
+# A more concise loop way to do the above
+stress_conditions <- c("ELS", "NS")
+sexes <- c("Male", "Female")
+datasets <- list(ten_minute_extinction_low = ten_minute_extinction_low,
+                 ten_minute_extinction_high = ten_minute_extinction_high)
+
+for (data_name in names(datasets)) {
+  for (stress in stress_conditions) {
+    for (sex in sexes) {
+      variable_name <- paste("long_ten", stress, sex, gsub("ten_minute_extinction_", "", data_name), sep = "_")
+      assign(variable_name, filter_pivot_individual_function(datasets[[data_name]], stress, sex))
+    }
+  }
 }
 
-ten_minute_extinction_low_ELS_M <- ten_minute_extinction_low %>% 
-  filter(Stress == "ELS" & Sex == "Male")
 
-ten_minute_extinction_low_long_ELS_M <- ten_minute_extinction_low_ELS_M %>% 
-  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
-  droplevels()
+long_individual_ten_analysis_function <- function(dataset){
+  ten_min_extinction_model <- lm(data = dataset, percentage ~ timepoint)
+  summary(ten_min_extinction_model)
+  anova_value <- Anova(ten_min_extinction_model)
+  return(anova_value)
+}
+# Keep like this, even though copy paste I prefer this for inferential analysis.
+low_indiv_extinction_analysis_ELS_M <- long_individual_ten_analysis_function(long_ten_ELS_Male_low)
+low_indiv_extinction_analysis_NS_M <- long_individual_ten_analysis_function(long_ten_NS_Male_low)
+low_indiv_extinction_analysis_ELS_F <- long_individual_ten_analysis_function(long_ten_ELS_Female_low)
+low_indiv_extinction_analysis_NS_F <- long_individual_ten_analysis_function(long_ten_NS_Female_low)
 
-low_ten_min_extinction_model_ELS_M <- lm(data = ten_minute_extinction_low_long_ELS_M, percentage ~ timepoint)
-summary(low_ten_min_extinction_model_ELS_M)
-Anova(low_ten_min_extinction_model_ELS_M)
-
-ten_minute_extinction_low_NS_M <- ten_minute_extinction_low %>% 
-  filter(Stress == "NS" & Sex == "Male")
-
-ten_minute_extinction_low_long_NS_M <- ten_minute_extinction_low_NS_M %>% 
-  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
-  droplevels()
-
-low_ten_min_extinction_model_NS_M <- lm(data = ten_minute_extinction_low_long_NS_M, percentage ~ timepoint)
-summary(low_ten_min_extinction_model_NS_M)
-Anova(low_ten_min_extinction_model_NS_M)
-
-ten_minute_extinction_low_ELS_F <- ten_minute_extinction_low %>% 
-  filter(Stress == "ELS" & Sex == "Female")
-
-ten_minute_extinction_low_long_ELS_F <- ten_minute_extinction_low_ELS_F %>% 
-  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
-  droplevels()
-
-low_ten_min_extinction_model_ELS_F <- lm(data = ten_minute_extinction_low_long_ELS_F, percentage ~ timepoint)
-summary(low_ten_min_extinction_model_ELS_F)
-Anova(low_ten_min_extinction_model_ELS_F)
-
-ten_minute_extinction_low_NS_F <- ten_minute_extinction_low %>% 
-  filter(Stress == "NS" & Sex == "Female")
-
-ten_minute_extinction_low_long_NS_F <- ten_minute_extinction_low_NS_F %>% 
-  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
-  droplevels()
-
-low_ten_min_extinction_model_NS_F <- lm(data = ten_minute_extinction_low_long_NS_F, percentage ~ timepoint)
-summary(low_ten_min_extinction_model_NS_F)
-Anova(low_ten_min_extinction_model_NS_F)
-
-
-# HIGH
-ten_minute_extinction_high_ELS_M <- ten_minute_extinction_high %>% 
-  filter(Stress == "ELS" & Sex == "Male")
-
-ten_minute_extinction_high_long_ELS_M <- ten_minute_extinction_high_ELS_M %>% 
-  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
-  droplevels()
-
-high_ten_min_extinction_model_ELS_M <- lm(data = ten_minute_extinction_high_long_ELS_M, percentage ~ timepoint)
-summary(high_ten_min_extinction_model_ELS_M)
-Anova(high_ten_min_extinction_model_ELS_M)
-
-ten_minute_extinction_high_NS_M <- ten_minute_extinction_high %>% 
-  filter(Stress == "NS" & Sex == "Male")
-
-ten_minute_extinction_high_long_NS_M <- ten_minute_extinction_high_NS_M %>% 
-  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
-  droplevels()
-
-high_ten_min_extinction_model_NS_M <- lm(data = ten_minute_extinction_high_long_NS_M, percentage ~ timepoint)
-summary(high_ten_min_extinction_model_NS_M)
-Anova(high_ten_min_extinction_model_NS_M)
-
-ten_minute_extinction_high_ELS_F <- ten_minute_extinction_high %>% 
-  filter(Stress == "ELS" & Sex == "Female")
-
-ten_minute_extinction_high_long_ELS_F <- ten_minute_extinction_high_ELS_F %>% 
-  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
-  droplevels()
-
-high_ten_min_extinction_model_ELS_F <- lm(data = ten_minute_extinction_high_long_ELS_F, percentage ~ timepoint)
-summary(high_ten_min_extinction_model_ELS_F)
-Anova(high_ten_min_extinction_model_ELS_F)
-
-ten_minute_extinction_high_NS_F <- ten_minute_extinction_high %>% 
-  filter(Stress == "NS" & Sex == "Female")
-
-ten_minute_extinction_high_long_NS_F <- ten_minute_extinction_high_NS_F %>% 
-  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
-  droplevels()
-
-high_ten_min_extinction_model_NS_F <- lm(data = ten_minute_extinction_high_long_NS_F, percentage ~ timepoint)
-summary(high_ten_min_extinction_model_NS_F)
-Anova(high_ten_min_extinction_model_NS_F)
+high_indiv_extinction_analysis_ELS_M <- long_individual_ten_analysis_function(long_ten_ELS_Male_high)
+high_indiv_extinction_analysis_NS_M <- long_individual_ten_analysis_function(long_ten_NS_Male_high)
+high_indiv_extinction_analysis_ELS_F <- long_individual_ten_analysis_function(long_ten_ELS_Female_high)
+high_indiv_extinction_analysis_NS_F <- long_individual_ten_analysis_function(long_ten_NS_Female_high)
 
 #### HIGH extinction recall (recall_1) 
-recall_1_high <- complete_ds_high %>% 
-  select(c(1:4),"extinction_recall")
+recall_filter_function <- function(dataset){
+  recall_1 <- dataset %>% 
+    select(c(1:4),"extinction_recall")
+}
+recall_1_low <- recall_filter_function(complete_ds_low)
+recall_1_high <- recall_filter_function(complete_ds_high)
 
-hist(recall_1_high$extinction_recall)
+# 
+# hist(recall_1_high$extinction_recall)
+# 
+# #log transform
+# recall_1_high$extinction_recallPLusone <- recall_1_high$extinction_recall + 1
+# recall_1_high$extinction_recall_log <- log(recall_1_high$extinction_recallPLusone)
+# 
+# #sqrt transform
+# recall_1_high$extinction_recall_sqrt <- sqrt(recall_1_high$extinction_recall)
+# 
+# #box cox - doesnt work 
+# recall_1_high$extinction_recall_box <- boxCox(recall_1_high$extinction_recall)
+# 
+# hist(recall_1_high$extinction_recall)
+# hist(recall_1_high$extinction_recall_log)
+# shapiro.test(recall_1_high$extinction_recall)
+# shapiro.test(recall_1_high$extinction_recall_sqrt)
 
-#log transform
-recall_1_high$extinction_recallPLusone <- recall_1_high$extinction_recall + 1
-recall_1_high$extinction_recall_log <- log(recall_1_high$extinction_recallPLusone)
-
-#sqrt transform
-recall_1_high$extinction_recall_sqrt <- sqrt(recall_1_high$extinction_recall)
-
-#box cox - doesnt work 
-recall_1_high$extinction_recall_box <- boxCox(recall_1_high$extinction_recall)
-
-hist(recall_1_high$extinction_recall)
-hist(recall_1_high$extinction_recall_log)
-shapiro.test(recall_1_high$extinction_recall)
-shapiro.test(recall_1_high$extinction_recall_sqrt)
+recall_inferential_test_function <- function(dataset){
+  ext_recall_lm <- lm(data = dataset, extinction_recall ~ Sex + Stress + Condition + Sex:Stress + Sex:Condition + Stress:Condition + Sex:Sex:Condition)
+  summary(ext_recall_lm)
+  anova_test <- Anova(ext_recall_lm)
+  return (anova_test)
+}
+ext_recall_low_anova <- recall_inferential_test_function(recall_1_low)
+ext_recall_high_anova <- recall_inferential_test_function(recall_1_high)
 
 
-ext_recall_high_lm <- lm(data = recall_1_high, extinction_recall ~ Sex + Stress + Condition + Sex:Stress + Sex:Condition + Stress:Condition + Sex:Sex:Condition)
-summary(ext_recall_high_lm)
-Anova(ext_recall_high_lm)
 #try a possion dist <- not sure that this is correct
-poisson_model_high_glm <- glm(extinction_recall ~ Sex + Stress + Condition + Sex:Stress + Sex:Condition + Stress:Condition + Sex:Sex:Condition, data = recall_1_high, family = poisson(link = "log"))
-summary(poisson_model_high_glm)
+# poisson_model_high_glm <- glm(extinction_recall ~ Sex + Stress + Condition + Sex:Stress + Sex:Condition + Stress:Condition + Sex:Sex:Condition, data = recall_1_high, family = poisson(link = "log"))
+# summary(poisson_model_high_glm)
 #individual t tests conducted assess each group 
 # M ELS
 m_els_ds <- recall_1 %>% 
@@ -1133,19 +1101,6 @@ complete_ds_2_low
 complete_ds_2_high
 complete_ds_10_low
 complete_ds_10_high
-
-# dataset_selected <- complete_ds_2_low %>% 
-#   select("Sex", "Stress", "recall_1","extinction_recall", "reminder_day1_shock", "reminder_day2")
-# 
-# factor_cols <- c("Sex", "Stress")
-# dataset_selected[factor_cols] <- lapply(dataset_selected[factor_cols], factor)
-# dataset_longformat <- dataset_selected %>% 
-#   pivot_longer(cols = c("recall_1","extinction_recall", "reminder_day1_shock", "reminder_day2"), names_to = "timepoint", values_to = "freezing_percentage")
-# 
-# #add the ID column
-# dataset_longformat$id <- rep(1:nrow(complete_ds_2_low), each = 4)
-# aov_rm_model <- anova_test(data = dataset_longformat,dv = freezing_percentage, wid = id, within = timepoint, between = c(Sex, Stress))
-# aov_rm_model
 
 make_longitudinal <- function(dataset, isConditionsplit = FALSE, isRecallOnly = FALSE){
   #factor_cols <- c("Sex", "Stress")
