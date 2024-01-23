@@ -261,8 +261,6 @@ recall_inferential_test_function <- function(dataset){
 }
 ext_recall_low_anova <- recall_inferential_test_function(recall_1_low)
 ext_recall_high_anova <- recall_inferential_test_function(recall_1_high)
-
-
 #try a possion dist <- not sure that this is correct
 # poisson_model_high_glm <- glm(extinction_recall ~ Sex + Stress + Condition + Sex:Stress + Sex:Condition + Stress:Condition + Sex:Sex:Condition, data = recall_1_high, family = poisson(link = "log"))
 # summary(poisson_model_high_glm)
