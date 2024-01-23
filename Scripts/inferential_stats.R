@@ -8,11 +8,12 @@ library(lsr)
 library(ggpubr)
 library(rstatix)
 library(emmeans)
+library(lmerTest)
 # Get the n's involved for the whole thing 
 
 #### n's LOW-------------- 
 complete_ds_low_forNs <- complete_ds_low %>% 
-  group_by(Sex, Stress, Condition) %>% 
+  group_by(Sex, Stress, condition) %>% 
   count()
 
 # n's HIGH----------------
@@ -22,28 +23,62 @@ complete_ds_high_forNs <- complete_ds_high %>%
 
 #### Inferential analysis
 
+
+
+
 #PrePost
-freezing_acquisition_high_long <- freezing_acquisition_high %>% 
-  pivot_longer(c("Pre", "Post"), names_to = "Pre_Post", values_to = "Percentage_freezing")
+collect_pre_post <- function(dataset) {
+  # Add a unique identifier for each subject
+  dataset$Subject <- seq_along(dataset[,1])
+  
+  # Pivot the data to long format
+  freezing_acquisition <- dataset %>% 
+    pivot_longer(cols = c("Pre", "Post"), 
+                 names_to = "Pre_Post", 
+                 values_to = "Percentage_freezing")
+  
+  return(freezing_acquisition)
+}
 
-freezing_acquisition_low_long <- freezing_acquisition_low %>% 
-  pivot_longer(c("Pre", "Post"), names_to = "Pre_Post", values_to = "Percentage_freezing")
-
-prepost_lm_high <- lm(Post - Pre ~ Sex * Stress, data = freezing_acquisition_high)
-summary(prepost_lm_high)
-prepost_aov_high <- aov(Post - Pre ~ Sex * Stress, data = freezing_acquisition_high)
-summary(prepost_aov_high)
-etaSquared(prepost_aov_high)
-anova_test(prepost_aov_high)
+freezing_acquisition_low_long <- collect_pre_post(freezing_acquisition_low)
+freezing_acquisition_high_long <- collect_pre_post(freezing_acquisition_high)
 
 
-prepost_lm_low <- lm(Post - Pre ~ Sex * Stress, data = freezing_acquisition_low)
-summary(prepost_lm_low)
-prepost_aov_low <- aov(Post - Pre ~ Sex * Stress, data = freezing_acquisition_low)
-summary(prepost_aov_low)
-etaSquared(prepost_aov_low)
-anova_test(prepost_aov_high)
 
+# This is not producing the same results as befopre
+pre_post_rm_lme4 <- function(dataset) {
+  # Assuming 'Subject' is your subject identifier in the dataset
+  # Fit the mixed-effects model
+  rm_lme4_model <- lmer(Percentage_freezing ~ Pre_Post * Sex * Stress + (1|Subject), data = dataset)
+  summary(rm_lme4_model)
+  
+  return(rm_lme4_model)
+}
+
+# Apply the function 
+rm_lme4_model_low <- pre_post_rm_lme4(freezing_acquisition_low_long)
+summary(rm_lme4_model_low)
+rm_lme4_model_high <- pre_post_rm_lme4(freezing_acquisition_high_long)
+summary(rm_lme4_model_high)
+
+# Should I be using ANOVA or lm here? 
+
+#pre_post_statistics <- function(dataset){
+#  prepost_analysis <- lm(Post - Pre ~ Sex * Stress, data = dataset)
+  #prepost_analysis <- aov(Post - Pre ~ Sex * Stress, data = dataset)
+#  anova_result <- anova(prepost_analysis)
+#  print(anova_result)
+#  return(prepost_analysis)
+#}
+
+#pre_post_model_low <- pre_post_statistics(freezing_acquisition_low)
+#pre_post_model_high <-pre_post_statistics(freezing_acquisition_high)
+
+check_histograms <- function(dataset){
+  hist(dataset$residuals)
+}
+
+check_histograms()
 #Low
 hist(prepost_lm_low$residuals)
 
@@ -51,81 +86,66 @@ hist(prepost_lm_low$residuals)
 hist(prepost_lm_high$residuals)
 
 
-#### Inferential stats ----
-#### HIGH Pre-post shock ----
-
-pre_post <- freezing_acquisition_long %>% 
-  filter(Timepoint == "Post")
-hist(pre_post$Percentage)
-
-model.diag.metrics <- augment(prepost_lm)
-head(model.diag.metrics)
-par(mfrow = c(2,2))
-plot(prepost_lm)
-
-#All  of the above suggests non normal data. 
-leveneTest(Percentage ~ Sex * Stress * Timepoint, data = freezing_acquisition_long)
-# Levenes test is very signficant. 
-re_lm <- lm(data = freezing_acquisition, Pre ~ Sex + Stress + Sex*Stress)
-summary(pre_lm)
-
-plot(freezing_acquisition$Sex, rstandard(pre_lm))
-hist(pre_lm$residuals)
-hist(post_lm$residuals)
-
-
-#check the residuals as a histogram
-hist(prepost_lm_2$residuals)
-
-freezing_acquisition_long <- freezing_acquisition %>% 
-  pivot_longer(col = c("Pre", "Post"), names_to = "Timepoint", values_to = "Percentage")
-
-prepost_lm_2 <- lm(data = freezing_acquisition_long, Percentage ~ Timepoint + Sex + Stress + Sex:Stress)
-summary(prepost_lm_2)
-
-
 # HIGH 2 minute extinction if I want to only look at 2 minute group
-complete_ds_high_2min <- complete_ds_high %>% 
-  select(c(1:4),recall_1) %>% 
-  filter(Condition == 2)
 
-#combined 2 and 10 miunte, looking at recall 
-complete_ds_high_2min_w10min <- complete_ds_high %>% 
-  select(c(1:4),recall_1)
-
-recall_lm_high <- lm(data = complete_ds_high_2min_w10min, recall_1 ~ Sex*Stress)
-summary(recall_lm_high)
-anova(recall_lm_high)
 
 #LOW 2 minute extinction if I want to only look at 2 minute group
-complete_ds_low_2min <- complete_ds_low %>% 
-  select(c(1:4),recall_1) %>% 
-  filter(Condition == 2)
-
-#combined 2 and 10 miunte, looking at recall 
-complete_ds_low_2min_w10min <- complete_ds_low %>% 
-  select(c(1:4),recall_1)
-
-recall_lm_low <- lm(data = complete_ds_low_2min_w10min, recall_1 ~ Sex*Stress)
-summary(recall_lm_low)
-anova(recall_lm_low)
+#### RECALL ##################################
 
 
+# No need to filter by 2 as recall is for every animal
+filter_recall_group <- function(dataset){
+  recall_filtered_dataset <- complete_ds_low %>% 
+    select(c(1:4),recall_1)
+  return(recall_filtered_dataset)
+}
+
+recall_group_2_low <- filter_recall_group(complete_ds_low)
+recall_group_2_high <- filter_recall_group(complete_ds_high)
+
+recall_group_2_low_count <- recall_group_2_low %>% 
+  group_by(Sex, Stress) %>% 
+  count()
+
+
+recall_anova_test <- function(dataset){
+  recall_lm <- lm(data = dataset, recall_1 ~ Sex*Stress)
+  #summary(recall_lm_high)
+  anova_result <- anova(recall_lm)
+  return(anova_result)
+}
+recall_anova_low <- recall_anova_test(recall_group_2_low)
+recall_anova_high <- recall_anova_test(recall_group_2_high)
 
 
 
+#### Extinction ----
 
-#### LOW Inferential 10 minute (ten_minute_extinction) ----
-ten_minute_extinction_low <- complete_ds_low %>% 
-  select(c(1:4),c(8:12)) %>% 
-  filter(Condition ==10)
 
-#ten_minute_ds <- list(ten_minute_extinction$ext1_curve, ten_minute_extinction$ext2_curve, ten_minute_extinction$ext3_curve, ten_minute_extinction$ext4_curve, ten_minute_extinction$ext5_curve)
+filter_extinction_group <- function(dataset){
+  ten_minute_extinction <- dataset %>% 
+    select(c(1:4),c(8:12)) %>% 
+    filter(Condition ==10)
+  return(ten_minute_extinction)
+}
+ten_minute_pivot_function <- function (dataset){
+  ten_minute_extinction_long <- dataset %>% 
+    pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+    droplevels()
+  ten_minute_extinction_long$timepoint <- as.factor(ten_minute_extinction_long$timepoint)
+  return(ten_minute_extinction_long)
+}
+  
 
-ten_minute_extinction_low_long <- ten_minute_extinction_low %>% 
-  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
-  droplevels()
-ten_minute_extinction_low_long$timepoint <- as.factor(ten_minute_extinction_low_long$timepoint)
+
+ten_minute_low <- filter_extinction_group(complete_ds_low)
+ten_minute_high <- filter_extinction_group(complete_ds_high)
+
+ten_minute_pivot_low <- ten_minute_pivot_function(ten_minute_low)
+ten_minute_pivot_high <- ten_minute_pivot_function(ten_minute_high)
+
+
+##### What model should I use here.
 
 # MODEL 1: Sex + Stress + Sex * Stress + timepoint <- very simple model
 low_ten_min_extinction_model <- lm(data = ten_minute_extinction_low_long, percentage ~ Stress + Sex + Sex * Stress * timepoint)
@@ -155,6 +175,11 @@ Anova(high_ten_min_extinction_model)
 
 #### Individual 10 minute splits: 
 # LOW
+
+filter_pivot_individual_function <- function(dataset){
+  
+}
+
 ten_minute_extinction_low_ELS_M <- ten_minute_extinction_low %>% 
   filter(Stress == "ELS" & Sex == "Male")
 
@@ -267,7 +292,7 @@ shapiro.test(recall_1_high$extinction_recall)
 shapiro.test(recall_1_high$extinction_recall_sqrt)
 
 
-ext_recall_high_lm <- lm(data = recall_1_high, extinction_recall_log ~ Sex + Stress + Condition + Sex:Stress + Sex:Condition + Stress:Condition + Sex:Sex:Condition)
+ext_recall_high_lm <- lm(data = recall_1_high, extinction_recall ~ Sex + Stress + Condition + Sex:Stress + Sex:Condition + Stress:Condition + Sex:Sex:Condition)
 summary(ext_recall_high_lm)
 Anova(ext_recall_high_lm)
 #try a possion dist <- not sure that this is correct
