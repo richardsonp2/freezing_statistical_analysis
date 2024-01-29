@@ -95,7 +95,7 @@ hist(prepost_lm_high$residuals)
 
 # No need to filter by 2 as recall is for every animal
 filter_recall_group <- function(dataset){
-  recall_filtered_dataset <- complete_ds_low %>% 
+  recall_filtered_dataset <- dataset %>% 
     select(c(1:4),recall_1)
   return(recall_filtered_dataset)
 }
@@ -109,7 +109,7 @@ recall_group_2_low_count <- recall_group_2_low %>%
 
 
 recall_anova_test <- function(dataset){
-  recall_lm <- lm(data = dataset, recall_1 ~ Sex*Stress)
+  recall_lm <- lm(data = dataset, recall_1 ~ Sex * Stress * Condition)
   #summary(recall_lm_high)
   anova_result <- anova(recall_lm)
   return(anova_result)
@@ -129,6 +129,7 @@ filter_extinction_group <- function(dataset){
   return(ten_minute_extinction)
 }
 ten_minute_pivot_function <- function (dataset){
+  dataset$Subject <- seq_along(dataset[,1])
   ten_minute_extinction_long <- dataset %>% 
     pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
     droplevels()
@@ -146,30 +147,44 @@ ten_minute_pivot_high <- ten_minute_pivot_function(ten_minute_high)
 
 
 ##### What model should I use here.
-
-# MODEL 1: Sex + Stress + Sex * Stress + timepoint <- very simple model
-low_ten_min_extinction_model <- lm(data = ten_minute_extinction_low_long, percentage ~ Stress + Sex + Sex * Stress * timepoint)
-
-summary(low_ten_min_extinction_model)
-Anova(low_ten_min_extinction_model)
-
-#### HIGH Inferential 10 minute (ten_minute_extinction) ----
-ten_minute_extinction_high <- complete_ds_high %>% 
-  select(c(1:4),c(8:12)) %>% 
-  filter(Condition ==10)
-
-#ten_minute_ds <- list(ten_minute_extinction$ext1_curve, ten_minute_extinction$ext2_curve, ten_minute_extinction$ext3_curve, ten_minute_extinction$ext4_curve, ten_minute_extinction$ext5_curve)
-
-ten_minute_extinction_high_long <- ten_minute_extinction_high %>% 
-  pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
-  droplevels()
-ten_minute_extinction_high_long$timepoint <- as.factor(ten_minute_extinction_high_long$timepoint)
-
-# MODEL 1: Sex + Stress + Sex * Stress + timepoint <- very simple model
-high_ten_min_extinction_model <- lm(data = ten_minute_extinction_high_long, percentage ~ Stress + Sex + Sex * Stress * timepoint)
-
-summary(high_ten_min_extinction_model)
-Anova(high_ten_min_extinction_model)
+# I think this is the best model to use
+# How do I see if there is an influence of timepoint, only considering the difference between 2 and 10 (1st and last timepoint).
+extinction_timecourse_model <- function(dataset) {
+  # Assuming 'Subject' is your subject identifier in the dataset
+  # Fit the mixed-effects model
+  rm_lme4_model <- lmer(percentage ~ timepoint * Sex * Stress + (1|Subject), data = dataset)
+  summary(rm_lme4_model)
+  
+  return(rm_lme4_model)
+}
+extinction_timecourse_results_low <- extinction_timecourse_model(ten_minute_pivot_low)
+summary(extinction_timecourse_results_low)
+extinction_timecourse_results_high <- extinction_timecourse_model(ten_minute_pivot_high)
+summary(extinction_timecourse_results_high)
+# 
+# # MODEL 1: Sex + Stress + Sex * Stress + timepoint <- very simple model
+# low_ten_min_extinction_model <- lm(data = ten_minute_extinction_low_long, percentage ~ Stress + Sex + Sex * Stress * timepoint)
+# 
+# summary(low_ten_min_extinction_model)
+# Anova(low_ten_min_extinction_model)
+# 
+# #### HIGH Inferential 10 minute (ten_minute_extinction) ----
+# ten_minute_extinction_high <- complete_ds_high %>% 
+#   select(c(1:4),c(8:12)) %>% 
+#   filter(Condition ==10)
+# 
+# #ten_minute_ds <- list(ten_minute_extinction$ext1_curve, ten_minute_extinction$ext2_curve, ten_minute_extinction$ext3_curve, ten_minute_extinction$ext4_curve, ten_minute_extinction$ext5_curve)
+# 
+# ten_minute_extinction_high_long <- ten_minute_extinction_high %>% 
+#   pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+#   droplevels()
+# ten_minute_extinction_high_long$timepoint <- as.factor(ten_minute_extinction_high_long$timepoint)
+# 
+# # MODEL 1: Sex + Stress + Sex * Stress + timepoint <- very simple model
+# high_ten_min_extinction_model <- lm(data = ten_minute_extinction_high_long, percentage ~ Stress + Sex + Sex * Stress * timepoint)
+# 
+# summary(high_ten_min_extinction_model)
+# Anova(high_ten_min_extinction_model)
 
 
 
