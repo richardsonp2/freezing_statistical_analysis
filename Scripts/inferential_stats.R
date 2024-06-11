@@ -242,6 +242,50 @@ high_indiv_extinction_analysis_NS_M <- long_individual_ten_analysis_function(lon
 high_indiv_extinction_analysis_ELS_F <- long_individual_ten_analysis_function(long_ten_ELS_Female_high)
 high_indiv_extinction_analysis_NS_F <- long_individual_ten_analysis_function(long_ten_NS_Female_high)
 
+# try analysing 4 and 6 minutes 
+four_or_six_extinction_dataset <- function(dataset, extinction_time = 4){
+  
+  if (extinction_time == 4) {
+   dataset_4or6 <- dataset %>% 
+     select(c(1:6)) %>% 
+     pivot_longer(cols = c(5:6), names_to = "timepoint", values_to = "percentage") %>% 
+     droplevels()
+   num_rows <- nrow(dataset_4or6)
+   dataset_4or6$Subject <- rep(1:(num_rows/2), each=2)
+  }
+  else if (extinction_time == 6) {
+    dataset_4or6 <- dataset %>% 
+      select(c(1:7)) %>% 
+      pivot_longer(cols = c(5:7), names_to = "timepoint", values_to = "percentage") %>% 
+      droplevels()
+    num_rows <- nrow(dataset_4or6)
+    dataset_4or6$Subject <- rep(1:(num_rows/3), each=3)
+  }
+  return(dataset_4or6)
+}
+# Generate the datasets 
+four_minute_dataset_low <- four_or_six_extinction_dataset(ten_minute_extinction_low, extinction_time = 4)
+six_minute_dataset_low <- four_or_six_extinction_dataset(ten_minute_extinction_low, extinction_time = 6)
+
+four_minute_dataset_high <- four_or_six_extinction_dataset(ten_minute_extinction_high, extinction_time = 4)
+six_minute_dataset_high <- four_or_six_extinction_dataset(ten_minute_extinction_high, extinction_time = 6)
+
+# run the statistics
+four_minute_dataset_results_low <- extinction_timecourse_model(four_minute_dataset_low)
+six_minute_dataset_results_low <- extinction_timecourse_model(six_minute_dataset_low)
+
+four_minute_dataset_results_high <- extinction_timecourse_model(four_minute_dataset_high)
+six_minute_dataset_results_high <- extinction_timecourse_model(six_minute_dataset_high)
+
+# see the summaries <= This shows what Kerrie suggests. But we already see extinction at this point.
+summary(four_minute_dataset_results_low)
+summary(six_minute_dataset_results_low)
+
+summary(four_minute_dataset_results_high)
+summary(six_minute_dataset_results_high)
+
+
+
 #### HIGH extinction recall (recall_1) 
 recall_filter_function <- function(dataset){
   recall_1 <- dataset %>% 
