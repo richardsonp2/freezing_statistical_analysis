@@ -112,7 +112,6 @@ complete_ds_low_a <- complete_ds_low
 
 complete_ds_low_a1 <- complete_ds_low_a[!is.na(complete_ds_low_a$ext1_curve),]
 
-#Doing it in this order preserves the
 ten_minute_extinction_low <- complete_ds_low_a %>%
   select(1:4, 8:12)
 ten_minute_extinction_low <- ten_minute_extinction_low %>%
@@ -180,21 +179,31 @@ line_label<-c("Female ELS", "Female NS", "Male ELS", "Male NS")
 #Key labels
 key_label <-  c("Male NS", "Male ELS","Female NS", "Female ELS")
 
-# Try to design graphs to
 
-pre_post_function <- function(data, groups, colours)
-{
-
-}
 ####HIGH Pre Post -----------------------------------------------------------
 #check if the 2 min and 10 min vary at this timepoint.
 complete_ds_high_2_10_analysis <- lm(recall_1 ~ Condition, data = complete_ds_high)
 summary(complete_ds_high_2_10_analysis)
 
-pre_post_descriptives_high <- freezing_acquisition_high %>%
-  group_by(Sex, Stress)%>%
-  summarize(mean_freezing_pre = mean(Pre, na.rm = T), sem_freezing_pre = sd(Pre, na.rm = T)/sqrt(length(Pre)), mean_freezing_post = mean(Post, na.rm = T), sem_freezing_post = sd(Post, na.rm = T)/sqrt(length(Post)))
-write.csv(pre_post_descriptives, file = "./High/Descriptives/pre_post_descriptives.csv")
+
+make_prepost_descriptives <- function(acquisition_dataset){
+  pre_post_descriptives_high <- freezing_acquisition_high %>%
+    group_by(Sex, Stress)%>%
+    summarize(mean_freezing_pre = mean(Pre, na.rm = T), sem_freezing_pre = sd(Pre, na.rm = T)/sqrt(length(Pre)), mean_freezing_post = mean(Post, na.rm = T), sem_freezing_post = sd(Post, na.rm = T)/sqrt(length(Post)))
+    
+  
+}
+freezing_prepost_low <- make_prepost_descriptives(freezing_acquisition_low)
+freezing_prepost_high <- make_prepost_descriptives(freezing_acquisition_high)
+
+write.csv(pre_post_descriptives, file = "./High/Descriptives/pre_post_descriptives.csv") 
+
+make_prepost_long <- function(prepost_descriptives){
+  prepost_descriptives_figure <-  pre_post_descriptives_high %>%
+    unite(sex_stress, c(Sex, Stress), remove=TRUE) %>%
+    pivot_longer(cols = c(mean_freezing_pre, mean_freezing_post, sem_freezing_pre, sem_freezing_post), names_to = c(".value","prepost"), names_pattern = "(.*?)_(.*)") %>%
+    mutate(prepost = fct_reorder(prepost, desc(prepost)))
+}
 
 prepost_figure_ds_high <-  pre_post_descriptives_high %>%
   unite(sex_stress, c(Sex, Stress), remove=TRUE) %>%
