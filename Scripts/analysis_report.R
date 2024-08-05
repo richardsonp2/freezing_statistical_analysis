@@ -187,16 +187,17 @@ summary(complete_ds_high_2_10_analysis)
 
 
 make_prepost_descriptives <- function(acquisition_dataset){
-  pre_post_descriptives_high <- freezing_acquisition_high %>%
+  acquisition_dataset_descriptives <- acquisition_dataset %>%
     group_by(Sex, Stress)%>%
     summarize(mean_freezing_pre = mean(Pre, na.rm = T), sem_freezing_pre = sd(Pre, na.rm = T)/sqrt(length(Pre)), mean_freezing_post = mean(Post, na.rm = T), sem_freezing_post = sd(Post, na.rm = T)/sqrt(length(Post)))
-    
-  
 }
-freezing_prepost_low <- make_prepost_descriptives(freezing_acquisition_low)
-freezing_prepost_high <- make_prepost_descriptives(freezing_acquisition_high)
 
-write.csv(pre_post_descriptives, file = "./High/Descriptives/pre_post_descriptives.csv") 
+freezing_prepost_descriptives_low <- make_prepost_descriptives(freezing_acquisition_low)
+freezing_prepost_descriptives_high <- make_prepost_descriptives(freezing_acquisition_high)
+
+write.csv(freezing_prepost_descriptives_low, file = "./Low/Descriptives/pre_post_descriptives_low.csv") 
+write.csv(freezing_prepost_descriptives_high, file = "./High/Descriptives/pre_post_descriptives_high.csv") 
+
 
 make_prepost_long <- function(prepost_descriptives){
   prepost_descriptives_figure <-  pre_post_descriptives_high %>%
