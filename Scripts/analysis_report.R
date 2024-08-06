@@ -206,82 +206,72 @@ make_prepost_long <- function(prepost_descriptives){
     mutate(prepost = fct_reorder(prepost, desc(prepost)))
 }
 
-prepost_figure_ds_high <-  pre_post_descriptives_high %>%
-  unite(sex_stress, c(Sex, Stress), remove=TRUE) %>%
-  pivot_longer(cols = c(mean_freezing_pre, mean_freezing_post, sem_freezing_pre, sem_freezing_post), names_to = c(".value","prepost"), names_pattern = "(.*?)_(.*)") %>%
-  mutate(prepost = fct_reorder(prepost, desc(prepost)))
-
-
-linechart_prepost_high <- ggplot(prepost_figure_ds_high, aes(x= prepost, y = mean, group = sex_stress, colour = sex_stress))+
-  geom_line(size = 1.0)+
-  coord_cartesian(ylim = c(0, 80)) +
-  scale_y_continuous(breaks=seq(0,80,20), expand = c(0,0))+
-  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), width=.2,
-                position=position_dodge(0.05))+
-  scale_y_continuous(breaks=seq(0,80,20))
-
-#Count
-df_fearcond_high_count <- freezing_acquisition_high %>%
-  group_by(Sex, Stress) %>%
-  count()
-
-high_count_prepost = list()
-for (i in df_fearcond_high_count$n)
-{
-  high_count_prepost <- append(high_count_prepost,i)
+make_figure_prepost_ds <- function(dataset){
+  prepost_figure_ds_high <-  pre_post_descriptives_high %>%
+    unite(sex_stress, c(Sex, Stress), remove=TRUE) %>%
+    pivot_longer(cols = c(mean_freezing_pre, mean_freezing_post, sem_freezing_pre, sem_freezing_post), names_to = c(".value","prepost"), names_pattern = "(.*?)_(.*)") %>%
+    mutate(prepost = fct_reorder(prepost, desc(prepost)))
+  
 }
+prepost_figure_ds_low <- make_figure_prepost_ds(pre_post_descriptives_low)
+prepost_figure_ds_high <- make_figure_prepost_ds(pre_post_descriptives_high)
+
+linechart_figure_function <- function(dataset, y_axis_limit = 100){
+  linechart_prepost_high <- ggplot(prepost_figure_ds_high, aes(x= prepost, y = mean, group = sex_stress, colour = sex_stress))+
+    geom_line(size = 1.0)+
+    coord_cartesian(ylim = c(0, y_axis_limit)) +
+    scale_y_continuous(breaks=seq(0,y_axis_limit,20), expand = c(0,0))+
+    geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), width=.2,
+                  position=position_dodge(0.05))+
+    scale_y_continuous(breaks=seq(0,y_axis_limit,20))
+}
+
+linechart_prepost_low <- linechart_figure_function(prepost_figure_ds_low, y_axis_limit = 100)
+linechart_prepost_high <- linechart_figure_function(prepost_figure_ds_high, y_axis_limit = 100)
+
+count_simple_function <- function(dataset){
+  df_fearcond_count <- dataset %>%
+    group_by(Sex, Stress) %>%
+    count()
+  return(df_fearcond_count)
+}
+
+
+prepost_count_function <- function(dataset){
+  #Count
+  
+  df_fearcond_count <- count_simple_function(dataset) 
+  
+  count_prepost = list()
+  for (i in df_fearcond_count$n)
+  {
+    count_prepost <- append(count_prepost,i)
+  }  
+  return (count_prepost)
+}
+
+df_fearcond_low_count <- prepost_count_function(freezing_acquisition_low)
+df_fearcond_high_count <- prepost_count_function(freezing_acquisition_high)
 
 #linechart_prepost_high <- linechart_prepost_high + scale_color_manual(labels = line_label ,values = orange_blue)
-linechart_prepost_high <- linechart_prepost_high + scale_color_manual(labels = c("Female_ELS" = sprintf("Female ELS\n n = %s", high_count_prepost[1]), "Female_NS" =  sprintf("Female NS\n n = %s", high_count_prepost[2]), "Male_ELS" = sprintf("Male ELS\n n = %s", high_count_prepost[3]), "Male_NS" =  sprintf("Male NS\n n = %s", high_count_prepost[4])) ,values = orange_blue)
-linechart_prepost_high <- linechart_prepost_high + labs(title="High intensity shocK", x = NULL, y = NULL, colour = "Sex and Stress type")
-linechart_prepost_high <- linechart_prepost_high + scale_x_discrete(labels = c("freezing_pre" = "Pre-Shock", "freezing_post" =  "Post-Shock") )
+low_string = "Low intensity shock"
+high_string = "High intensity shock"
 
-linechart_prepost_high <- linechart_prepost_high + blank_figure_theme
-linechart_prepost_high
-
-#Low Prepost
-pre_post_descriptives_low <- freezing_acquisition_low %>%
-  group_by(Sex, Stress)%>%
-  summarize(mean_freezing_pre = mean(Pre, na.rm = T), sem_freezing_pre = sd(Pre, na.rm = T)/sqrt(length(Pre)), mean_freezing_post = mean(Post, na.rm = T), sem_freezing_post = sd(Post, na.rm = T)/sqrt(length(Post)))
-write.csv(pre_post_descriptives_low, file = "./Low/Descriptives/pre_post_descriptives.csv")
-
-prepost_figure_ds_low <-  pre_post_descriptives_low %>%
-  unite(sex_stress, c(Sex, Stress), remove=TRUE) %>%
-  pivot_longer(cols = c(mean_freezing_pre, mean_freezing_post, sem_freezing_pre, sem_freezing_post), names_to = c(".value","prepost"), names_pattern = "(.*?)_(.*)") %>%
-  mutate(prepost = fct_reorder(prepost, desc(prepost)))
-
-
-linechart_prepost_low <- ggplot(prepost_figure_ds_low, aes(x= prepost, y = mean, group = sex_stress, colour = sex_stress))+
-  geom_line(size = 1.0)+
-  coord_cartesian(ylim = c(0, 80)) +
-  scale_y_continuous(breaks=seq(0,80,20), expand = c(0,0))+
-  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), width=.2,
-                position=position_dodge(0.05))+
-  scale_y_continuous(breaks=seq(0,80,20))
-
-#Count
-df_fearcond_low_count <- freezing_acquisition_low %>%
-  group_by(Sex, Stress) %>%
-  count()
-
-low_count_prepost = list()
-for (i in df_fearcond_low_count$n)
-{
-  low_count_prepost <- append(low_count_prepost,i)
+linechart_count_and_titles <- function(figure, count_list, shock_intensity = low_string){
+  figure <- figure + scale_color_manual(labels = c("Female_ELS" = sprintf("Female ELS\n n = %s", count_list[1]), "Female_NS" =  sprintf("Female NS\n n = %s", count_list[2]), "Male_ELS" = sprintf("Male ELS\n n = %s", count_list[3]), "Male_NS" =  sprintf("Male NS\n n = %s", count_list[4])) ,values = orange_blue)
+  figure <- figure + labs(title=shock_intensity, x = NULL, y = NULL, colour = "Sex and Stress type")
+  figure <- figure + scale_x_discrete(labels = c("freezing_pre" = "Pre-Shock", "freezing_post" =  "Post-Shock") )
+  
+  figure <- figure + blank_figure_theme
+  return (figure)
+  
 }
 
-#linechart_prepost_low <- linechart_prepost_low + scale_color_manual(labels = line_label ,values = orange_blue)
-linechart_prepost_low <- linechart_prepost_low + scale_color_manual(labels = c("Female_ELS" = sprintf("Female ELS\n n = %s", low_count_prepost[1]), "Female_NS" =  sprintf("Female NS\n n = %s", low_count_prepost[2]), "Male_ELS" = sprintf("Male ELS\n n = %s", low_count_prepost[3]), "Male_NS" =  sprintf("Male NS\n n = %s", low_count_prepost[4])) ,values = orange_blue)
-linechart_prepost_low <- linechart_prepost_low + labs(title="Low intensity shock", x = NULL, y = NULL, colour = "Sex and Stress type")
-linechart_prepost_low <- linechart_prepost_low + scale_x_discrete(labels = c("freezing_pre" = "Pre-Shock", "freezing_post" =  "Post-Shock") )
-
-linechart_prepost_low <- linechart_prepost_low + blank_figure_theme
-linechart_prepost_low
-
-ggsave("PrePost_low.emf", plot = linechart_prepost_low, path = "./Low/Figures/")
+low_figure <- linechart_count_and_titles(linechart_prepost_low, df_fearcond_low_count, shock_intensity = low_string)
+high_figure <- linechart_count_and_titles(linechart_prepost_high, df_fearcond_high_count, shock_intensity = high_string)
 
 #Have to think of how to add the n's
-combined_linechart_prepost<- ggarrange(linechart_prepost_low, linechart_prepost_high, ncol=2, nrow=1, labels = "auto", common.legend = FALSE, legend="bottom")
+combined_linechart_prepost<- ggarrange(low_figure, high_figure, ncol=2, nrow=1, labels = "auto", common.legend = FALSE, legend="bottom")
 combined_linechart_prepost <- annotate_figure(combined_linechart_prepost, left = textGrob(y_title, rot = 90, vjust = 1, gp = gpar(cex = 1.3)))
 combined_linechart_prepost
 ggsave("combined_linechart_prepost.png", plot =combined_linechart_prepost, path = "./Combined/")
@@ -302,35 +292,39 @@ summary(prepost_aov_high)
 TukeyHSD(prepost_aov_high)
 
 
-#### 2 minute Recall HIGH #############################################################
-df_2minext_high <- complete_ds_high %>%
-  select(all_of(factor_cols), "recall_1") %>%
-  na.omit() %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex))) %>%
-  mutate(figures_stress = fct_reorder(Stress, desc(Stress))) %>%
-  unite(sex_stress, c(Sex, Stress), remove=FALSE) %>%
-  mutate(fig_sex_stress = factor(sex_stress, levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS")))
-df_2minext_low <- complete_ds_low %>%
-  select(all_of(factor_cols), "recall_1") %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex))) %>%
-  mutate(figures_stress = fct_reorder(Stress, desc(Stress))) %>%
-  unite(sex_stress, c(Sex, Stress), remove=FALSE) %>%
-  mutate(fig_sex_stress = factor(sex_stress, levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS")))
+#### 2 minute Recall #############################################################
+filter_2min_recall_function <- function(dataset){
+  df_2minext <- dataset %>%
+    select(all_of(factor_cols), "recall_1") %>%
+    na.omit() %>%
+    mutate(figures_sex = fct_reorder(Sex, desc(Sex))) %>%
+    mutate(figures_stress = fct_reorder(Stress, desc(Stress))) %>%
+    unite(sex_stress, c(Sex, Stress), remove=FALSE) %>%
+    mutate(fig_sex_stress = factor(sex_stress, levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS")))
+  return(df_2minext)
+}
+df_2minext_low <- filter_2min_recall_function(complete_ds_low)
+df_2minext_high <- filter_2min_recall_function(complete_ds_high)
 
-two_minute_descriptives_high <- two_minute_extinction_high %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  group_by(figures_sex, Stress)%>%
-  summarize(mean_recall = mean(recall_1, na.rm = T), sem_recall = sd(recall_1, na.rm = T)/sqrt(length(recall_1)))
+
+two_minute_descriptives_function <- function(dataset){
+  
+  two_minute_descriptives_high <- two_minute_extinction_high %>%
+    mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
+    group_by(figures_sex, Stress)%>%
+    summarize(mean_recall = mean(recall_1, na.rm = T), sem_recall = sd(recall_1, na.rm = T)/sqrt(length(recall_1)))
   write.csv(two_minute_descriptives, file = "./High/Descriptives/two_minute_descriptives.csv")
+  
+}
+low_two_minute_descriptives <- two_minute_descriptives_function(two_minute_extinction_low)
+high_two_minute_descriptives <- two_minute_descriptives_function(two_minute_extinction_high)
+
+two_minute_extinction_low_count <- count_simple_function(two_minute_extinction_low)
+two_minute_extinction_high_count <- count_simple_function(two_minute_extinction_high)
 
 
-two_minute_extinction_high_count <- two_minute_extinction_high %>%
-  group_by(Sex, Stress) %>%
-  count()
-two_minute_extinction_low_count <- two_minute_extinction_low %>%
-  group_by(Sex, Stress) %>%
-  count()
 
+# Is this needed? 
 two_minute_indivpoints <- two_minute_extinction %>%
   mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
   unite(sex_stress, c(Sex, Stress), remove=FALSE)
@@ -340,33 +334,41 @@ recall_results <- two_minute_descriptives %>%
   unite(sex_stress, c(figures_sex, Stress), remove = FALSE)
 recall_results$sex_stress <- factor(recall_results$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS","Female_ELS"))
 
-ext2min_figure_high <- ggplot(df_2minext_high, aes(x = fig_sex_stress, y = recall_1,  fill = fig_sex_stress))
-ext2min_figure_high <- ext2min_figure_high +
-  geom_boxplot()+
-  #stat_summary(fun.y=mean, geom="point", shape=23, size=4)+
-  #stat_summary(fun.data = mean_se, geom = "errorbar")+
-  coord_cartesian(ylim = c(0, 100)) +
-  facet_wrap(~figures_sex, strip.position = "bottom", scales = "free_x")+
-  geom_point(aes(x = fig_sex_stress, y = recall_1), position =
-               position_jitterdodge(jitter.width = 0.4, jitter.height=0.1,
-                                    dodge.width=0.9), alpha = 0.6)+
-  stat_summary(aes(x = fig_sex_stress, y = recall_1), fun = mean, geom = "point", shape = 21, size = 4, fill = "#FF00FF", color = "black", position = position_dodge(width = 0.9))
 
-# add n's to figure
-# n loop
-high_count_2min = list()
-for (i in two_minute_extinction_high_count$n)
-{
-  high_count_2min <- append(high_count_2min,i)
+generate_recall_2min_figure <- function(dataset, shock_intensity = low_string){
+  
+  #generate count for the figures
+  two_minute_recall_count <- count_simple_function(dataset)
+
+  ext2min_figure <- ggplot(dataset, aes(x = fig_sex_stress, y = recall_1,  fill = fig_sex_stress))
+  ext2min_figure <- ext2min_figure +
+    geom_boxplot()+
+    #stat_summary(fun.y=mean, geom="point", shape=23, size=4)+
+    #stat_summary(fun.data = mean_se, geom = "errorbar")+
+    coord_cartesian(ylim = c(0, 100)) +
+    facet_wrap(~figures_sex, strip.position = "bottom", scales = "free_x")+
+    geom_point(aes(x = fig_sex_stress, y = recall_1), position =
+                 position_jitterdodge(jitter.width = 0.4, jitter.height=0.1,
+                                      dodge.width=0.9), alpha = 0.6)+
+    stat_summary(aes(x = fig_sex_stress, y = recall_1), fun = mean, geom = "point", shape = 21, size = 4, fill = "#FF00FF", color = "black", position = position_dodge(width = 0.9))
+
+  # add n's to figure
+  # n loop
+  count_2min = list()
+  for (i in two_minute_recall_count$n)
+  {
+    count_2min <- append(count_2min,i)
+  }
+
+  ext2min_figure <- ext2min_figure + scale_x_discrete(labels = c("Male_ELS" = sprintf("Male ELS\n n = %s", count_2min[3]), "Male_NS" =  sprintf("Male NS\n n = %s", count_2min[4]), "Female_ELS" = sprintf("Female ELS\n n = %s", count_2min[1]), "Female_NS" =  sprintf("Female NS\n n = %s", count_2min[2])))
+  ext2min_figure <-ext2min_figure + scale_fill_manual(labels =c("Male NS","Male ELS", "Female NS", "Female ELS"),values= c("#b3b4ff","#1c20fc", "#ffc182", "#ff870f"))
+  ext2min_figure <-ext2min_figure + labs(title= shock_intensity, x = NULL, y = NULL, fill = NULL)
+  ext2min_figure <-ext2min_figure + blank_figure_theme
+
+  return(ext2min_figure)
 }
-
-ext2min_figure_high <- ext2min_figure_high + scale_x_discrete(labels = c("Male_ELS" = sprintf("Male ELS\n n = %s", high_count_2min[3]), "Male_NS" =  sprintf("Male NS\n n = %s", high_count_2min[4]), "Female_ELS" = sprintf("Female ELS\n n = %s", high_count_2min[1]), "Female_NS" =  sprintf("Female NS\n n = %s", high_count_2min[2])))
-ext2min_figure_high <-ext2min_figure_high + scale_fill_manual(labels =c("Male NS","Male ELS", "Female NS", "Female ELS"),values= c("#b3b4ff","#1c20fc", "#ffc182", "#ff870f"))
-ext2min_figure_high <-ext2min_figure_high + labs(title="High intensity shock", x = NULL, y = NULL, fill = NULL)
-ext2min_figure_high <-ext2min_figure_high + blank_figure_theme
-
-ext2min_figure_high
-
+ext_2min_figure_low <- generate_recall_2min_figure(df_2minext_low, shock_intensity = low_string)
+ext_2min_figure_high <- generate_recall_2min_figure(df_2minext_high, shock_intensity = high_string)
 #### 2 minute Recall LOW #############################################################
 
 ext2min_figure_low <- ggplot(df_2minext_low, aes(x = fig_sex_stress, y = recall_1,  fill = fig_sex_stress))
