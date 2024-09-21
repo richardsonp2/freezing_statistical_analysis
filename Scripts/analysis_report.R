@@ -195,29 +195,30 @@ make_prepost_descriptives <- function(acquisition_dataset){
 freezing_prepost_descriptives_low <- make_prepost_descriptives(freezing_acquisition_low)
 freezing_prepost_descriptives_high <- make_prepost_descriptives(freezing_acquisition_high)
 
-write.csv(freezing_prepost_descriptives_low, file = "./Low/Descriptives/pre_post_descriptives_low.csv") 
-write.csv(freezing_prepost_descriptives_high, file = "./High/Descriptives/pre_post_descriptives_high.csv") 
+write.csv(freezing_prepost_descriptives_low, file = "./Low/Descriptives/freezing_prepost_descriptives_low.csv") 
+write.csv(freezing_prepost_descriptives_high, file = "./High/Descriptives/freezing_prepost_descriptives_high.csv") 
 
 
 make_prepost_long <- function(prepost_descriptives){
-  prepost_descriptives_figure <-  pre_post_descriptives_high %>%
+  prepost_descriptives_figure <-  freezing_prepost_descriptives %>%
     unite(sex_stress, c(Sex, Stress), remove=TRUE) %>%
     pivot_longer(cols = c(mean_freezing_pre, mean_freezing_post, sem_freezing_pre, sem_freezing_post), names_to = c(".value","prepost"), names_pattern = "(.*?)_(.*)") %>%
     mutate(prepost = fct_reorder(prepost, desc(prepost)))
 }
 
 make_figure_prepost_ds <- function(dataset){
-  prepost_figure_ds_high <-  pre_post_descriptives_high %>%
+  prepost_figure_ds <-  dataset %>%
     unite(sex_stress, c(Sex, Stress), remove=TRUE) %>%
     pivot_longer(cols = c(mean_freezing_pre, mean_freezing_post, sem_freezing_pre, sem_freezing_post), names_to = c(".value","prepost"), names_pattern = "(.*?)_(.*)") %>%
     mutate(prepost = fct_reorder(prepost, desc(prepost)))
+  return(prepost_figure_ds)
   
 }
-prepost_figure_ds_low <- make_figure_prepost_ds(pre_post_descriptives_low)
-prepost_figure_ds_high <- make_figure_prepost_ds(pre_post_descriptives_high)
+prepost_figure_ds_low <- make_figure_prepost_ds(freezing_prepost_descriptives_low)
+prepost_figure_ds_high <- make_figure_prepost_ds(freezing_prepost_descriptives_high)
 
 linechart_figure_function <- function(dataset, y_axis_limit = 100){
-  linechart_prepost_high <- ggplot(prepost_figure_ds_high, aes(x= prepost, y = mean, group = sex_stress, colour = sex_stress))+
+  linechart_prepost_high <- ggplot(dataset, aes(x= prepost, y = mean, group = sex_stress, colour = sex_stress))+
     geom_line(size = 1.0)+
     coord_cartesian(ylim = c(0, y_axis_limit)) +
     scale_y_continuous(breaks=seq(0,y_axis_limit,20), expand = c(0,0))+
@@ -309,11 +310,11 @@ df_2minext_high <- filter_2min_recall_function(complete_ds_high)
 
 two_minute_descriptives_function <- function(dataset){
   
-  two_minute_descriptives_high <- two_minute_extinction_high %>%
+  two_minute_descriptives <- dataset %>%
     mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
     group_by(figures_sex, Stress)%>%
     summarize(mean_recall = mean(recall_1, na.rm = T), sem_recall = sd(recall_1, na.rm = T)/sqrt(length(recall_1)))
-  write.csv(two_minute_descriptives, file = "./High/Descriptives/two_minute_descriptives.csv")
+  #write.csv(two_minute_descriptives, file = "./High/Descriptives/two_minute_descriptives.csv")
   
 }
 low_two_minute_descriptives <- two_minute_descriptives_function(two_minute_extinction_low)
@@ -371,7 +372,7 @@ ext_2min_figure_low <- generate_recall_2min_figure(df_2minext_low, shock_intensi
 ext_2min_figure_high <- generate_recall_2min_figure(df_2minext_high, shock_intensity = high_string)
 
 
-combined_2min_bar <- ggarrange(ext2min_figure_low, ext2min_figure_high, ncol=2, nrow=1, labels = "auto", common.legend = TRUE, legend="bottom")
+combined_2min_bar <- ggarrange(ext_2min_figure_low, ext_2min_figure_high, ncol=2, nrow=1, labels = "auto", common.legend = TRUE, legend="bottom")
 combined_2min_bar <- combined_2min_bar <- my_annotate_figure_function(figure = combined_2min_bar, title_text = NULL)
 combined_2min_bar <- annotate_figure(combined_2min_bar, left = textGrob("Freezing percentage", rot = 90, vjust = 1,hjust= 0.3, gp = gpar(cex = 1.3)))
 combined_2min_bar
@@ -685,15 +686,16 @@ reminder_shock_figure <- function(database){
   reminder_shock_indivpoints$reminder_day1_shock <- as.numeric(reminder_shock_indivpoints$reminder_day1_shock)
   reminder_shock_descr$sex_stress <- factor(reminder_shock_descr$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
   
-  reminder_shock_descr <- reminder_shock_descr %>%
-    group_by(sex_stress, Condition, Sex, Stress, figures_sex, sex_stress_condition) %>%
-    summarize(mean_reminder_shock_low = mean(reminder_day1_shock, na.rm = TRUE), sem_reminder_shock_low = sd(reminder_day1_shock, na.rm = TRUE)/sqrt(length(reminder_day1_shock)))
+  #reminder_shock_descr <- reminder_shock_descr %>%
+  #  group_by(sex_stress, Condition, Sex, Stress, figures_sex, sex_stress_condition) %>%
+  #  summarize(mean_reminder_shock_low = mean(reminder_day1_shock, na.rm = TRUE), sem_reminder_shock_low = sd(reminder_day1_shock, na.rm = TRUE)/sqrt(length(reminder_day1_shock)))
   
   # to find the n's for each group
-  reminder_shock_count <- reminder_shock_low %>%
+  reminder_shock_count <- database %>%
+    drop_na() %>% 
     group_by(Sex,Stress,Condition) %>%
     count()
-  
+  print(reminder_shock_indivpoints)
   
   reminder_shock_indivpoints$sex_stress <- factor(reminder_shock_indivpoints$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
   reminder_shock_indivpoints$sex_stress <- factor(reminder_shock_indivpoints$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
@@ -701,9 +703,8 @@ reminder_shock_figure <- function(database){
   
   
   bar_chart_reminder_shock <- ggplot(reminder_shock_indivpoints, aes(x = sex_stress, y = reminder_day1_shock,  fill = Condition))
-  
   bar_chart_reminder_shock <- bar_chart_reminder_shock +
-    geom_boxplot()+
+    geom_boxplot(outlier.shape = NA) +  # Remove outliers
     #geom_errorbar(stat = "summary", position = position_dodge(width = 0.9), width = 0.5) +
     scale_y_continuous(breaks=seq(0,100,10), expand = c(0.025,0))+
     coord_cartesian(ylim = c(0, 100)) +
@@ -717,7 +718,7 @@ reminder_shock_figure <- function(database){
   
   bar_chart_reminder_shock <- bar_chart_reminder_shock + scale_x_discrete(labels = c("Male_ELS" = sprintf("ELS\n n = %s        n = %s", reminder_shock_count[5,4],reminder_shock_count[6,4]), "Male_NS" = sprintf( "NS\n n = %s        n = %s", reminder_shock_count[7,4],reminder_shock_count[8,4]),"Female_ELS" = sprintf("ELS\n n = %s        n = %s", reminder_shock_count[1,4],reminder_shock_count[2,4]), "Female_NS"= sprintf( "NS\n n = %s        n = %s", reminder_shock_count[3,4],reminder_shock_count[4,4])))
   bar_chart_reminder_shock <- bar_chart_reminder_shock + scale_fill_manual(values = extinction_colors)
-  bar_chart_reminder_shock <- bar_chart_reminder_shock + blank_figure_theme
+  bar_chart_reminder_shock <- bar_chart_reminder_shock + blank_figure_theme + labs(y=NULL)
   return(bar_chart_reminder_shock)
 }
 low_reminder_shock_figure <- reminder_shock_figure(reminder_shock_low)
@@ -834,10 +835,10 @@ reminder_shock_low <- complete_ds_low %>%
 reminder_recall_low <- complete_ds_low %>%
   select(2:4, reminder_day2)
 
-low_pre_post_descriptives <- freezing_acquisition_low %>%
+low_freezing_prepost_descriptives <- freezing_acquisition_low %>%
   group_by(Sex, Stress)%>%
   summarize(mean_freezing_pre = mean(Pre, na.rm = T), sem_freezing_pre = sd(Pre, na.rm = T)/sqrt(length(Pre)), mean_freezing_post = mean(Post, na.rm = T), sem_freezing_post = sd(Post, na.rm = T)/sqrt(length(Post)))
-write.csv(low_pre_post_descriptives, file = "./Low/Descriptives/pre_post_descriptives.csv")
+write.csv(low_freezing_prepost_descriptives, file = "./Low/Descriptives/freezing_prepost_descriptives.csv")
 
 #LOW prePost ####################
 
@@ -1445,6 +1446,7 @@ high_combined_recall_reminder_remrecall
 #     # Dont add an axis title to either graphs 
 #     recall_reminder_figure_combined <- recall_reminder_figure_combined + labs(x = NULL, y = NULL, group = "Group", color = "Group")
 #   }
+
 #   else {
 #     recall_reminder_figure_combined <- recall_reminder_figure_combined + labs(x = "Timepoint", y = "Freezing percentage", group = "Group", color = "Group")
 #     
