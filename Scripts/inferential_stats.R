@@ -23,8 +23,20 @@ complete_ds_high_forNs <- complete_ds_high %>%
 
 #### Inferential analysis
 
+#### Begin taken from other script ---------------------------------------------
+#inferential stats prepost high#####
+#add ID column
+freezing_acquisition_high$ID <- seq.int(nrow(freezing_acquisition_high))
+freezing_acquisition_long_high <- freezing_acquisition_high %>%
+  pivot_longer(col = c("Pre", "Post"), names_to = "Timepoint", values_to = "Percentage")
 
+freezing_acquisition_long_high$Timepoint <- as.factor(freezing_acquisition_long_high$Timepoint)
+prepost_aov_high <- aov(data = freezing_acquisition_long_high, Percentage ~ Sex*Stress*Timepoint)
+summary(prepost_aov_high)
 
+TukeyHSD(prepost_aov_high)
+
+##### END taken from other script ----------------------------------------------
 
 #PrePost
 collect_pre_post <- function(dataset) {

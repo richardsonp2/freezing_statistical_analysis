@@ -9,134 +9,238 @@ library(svglite)
 library(grid)
 library(emmeans)
 
-#Read in dataset and remove excel artifacts.
-complete_ds <- read.csv("./Datasets/high_low_combined.csv", na.strings=c(".","#DIV/0!"))
-complete_ds[complete_ds == "#DIV/0!"] <- NA
-#fix an issue with a space in the var
-complete_ds$Stress[complete_ds$Stress == " NS"] <- "NS"
+# The dataset contains some artifacts which were in place to make manually scoring behaivour easier. For example putting in X's where freezing was absent. 
+# The dataset also contains artifacts accidently put in during the manual scoring of the behaviour. 
+# Many rows will have NA values due to either not recording the freezing on that day, or being a 10 minute point in the 2 minute group. 
 
-#remove those which are x (the b cages)
-complete_ds <- complete_ds %>%
-  filter(Sex != "x")
+file_path <- "./Datasets/high_low_combined.csv"
 
-#Fix the structure change columns to factor or num
-factor_cols <- c("Shock", "Stress", "Sex", "Condition")
-num_cols <- c("Pre", "Post", "recall_1", "ext1_curve", "ext2_curve", "ext3_curve", "ext4_curve", "ext5_curve", "extinction_recall", "reminder_day1_shock", "reminder_day2")
-complete_ds[factor_cols] <- lapply(complete_ds[factor_cols], factor)  ## as.factor() could also be used
-complete_ds[num_cols] <- lapply(complete_ds[num_cols], as.numeric)  # NA's due to 2 min group not having 10 min timepoints.
+# Function to read and clean the dataset
+clean_dataset <- function(file_path) {
+  ds <- read.csv(file_path, na.strings = c(".", "#DIV/0!"))
+  ds[ds == "#DIV/0!"] <- NA
+  
+  # Fix space issue in the 'Stress' variable
+  ds$Stress[ds$Stress == " NS"] <- "NS"
+  
+  # Remove entries with 'x' in 'Sex'
+  ds <- ds %>%
+    filter(Sex != "x")
+  
+  return(ds)
+}
 
+# Function to convert columns to appropriate data types
+convert_columns <- function(ds) {
+  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
+  num_cols <- c("Pre", "Post", "recall_1", "ext1_curve", "ext2_curve", 
+                "ext3_curve", "ext4_curve", "ext5_curve", 
+                "extinction_recall", "reminder_day1_shock", "reminder_day2")
+  
+  ds[factor_cols] <- lapply(ds[factor_cols], function(x) as.factor(x))
+  ds[num_cols] <- lapply(ds[num_cols], as.numeric)
+  
+  return(ds)
+}
+# Function to clean empty strings in factor columns
+clean_factors <- function(ds) {
+  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
+  
+  for (col in factor_cols) {
+    ds[[col]][ds[[col]] == ""] <- NA
+    ds[[col]] <- droplevels(ds[[col]])
+  }
+  
+  # Reverse the factor levels for 'Condition'
+  ds$Condition <- fct_rev(ds$Condition)
+  
+  return(ds)
+}
 
-complete_ds$Shock[complete_ds$Shock=='']=NA
-complete_ds$Shock = droplevels(complete_ds$Shock)
-complete_ds$Stress[complete_ds$Stress=='']=NA
-complete_ds$Stress = droplevels(complete_ds$Stress)
-complete_ds$Sex[complete_ds$Sex=='']=NA
-complete_ds$Sex = droplevels(complete_ds$Sex)
-complete_ds$Condition[complete_ds$Condition=='']=NA
-complete_ds$Condition = droplevels(complete_ds$Condition)
+# Pre-processing script execution
 
-complete_ds$Stress <- complete_ds$Stress %>%
-  fct_recode("NS" = " NS")
+complete_ds <- clean_dataset(file_path)
+complete_ds <- convert_columns(complete_ds)
+complete_ds <- clean_factors(complete_ds)
 
-complete_ds$Sex <- complete_ds$Sex %>%
-  fct_recode("Female" = "F", "Male" = "M")
-
-#This is the only way I know to reverse 2 and 10 as factor levels for the figures.
-complete_ds$Condition <- fct_rev(complete_ds$Condition)
-
+# Display the structure of the cleaned dataset
 str(complete_ds)
 
-num_of_n <- complete_ds %>%
-  count()
-n_split_by_sex <- complete_ds %>%
-  group_by(Sex) %>%
-  count()
-nsplit_by_sex_stress <- complete_ds %>%
-  group_by(Sex, Stress) %>%
-  count()
 
-complete_count <- complete_ds %>%
-  group_by(Sex, Stress, Condition, Shock) %>%
-  count()
-##subset depending on shock filter for high low
-complete_ds_high <- complete_ds %>%
-  filter(Shock == "h")
-complete_ds_high$Shock <- droplevels(complete_ds_high$Shock) #Removes the NA factor
+#' Count observations in a dataset based on grouping type
+#'
+#' This function counts the number of observations in a dataset with optional grouping by factors like "Sex," "Stress," 
+#' "Condition," and "Shock." The grouping can be specified with the `type` argument.
+#'
+#' @param dataset A data frame containing the data to be counted.
+#' @param type A character string specifying the grouping for the count. Valid options are:
+#'   * "overall" - no grouping, just counts all observations
+#'   * "sex" - groups by the `Sex` column
+#'   * "sexstress" - groups by `Sex` and `Stress` columns
+#'   * "allfactors" - groups by `Sex`, `Stress`, `Condition`, and `Shock` columns
+#' @return A data frame with counts of observations based on the specified grouping.
+#' @examples
+#' # Count all observations
+#' count_n(my_data, type = "overall")
+#' @export
+count_n <- function(dataset, type = "overall"){
+  valid_choices <- c("overall", "sex", "sexstress", "allfactors")
+  
+  # Check if the input_string is one of the valid choices
+  if (!(type %in% valid_choices)) {
+    # Raise an exception with a custom error message
+    stop(sprintf("Invalid input: '%s'. Valid options are: %s", 
+                 type, paste(valid_choices, collapse = ", ")))
+    }
+  if (type == "overall"){
+    n_dataset <- dataset %>%
+      count()
+  }
+  else if (type == "sex"){
+    n_dataset <- dataset %>% 
+      group_by(Sex) %>% 
+      count()
+  }
+  else if (type == "sexstress"){
+    n_dataset <- dataset %>%
+      group_by(Sex, Stress) %>%
+      count()
+    }
+  else if (type == "allfactors"){
+    n_dataset <- dataset %>% 
+      group_by(Sex, Stress, Condition, Shock) %>% 
+    count()
+  }
+  return (n_dataset)
+}
+
+##### Main count run #####
+overall_count <- count_n(complete_ds, "overall")
+sex_count <- count_n(complete_ds, "sex")
+sex_stress_count <- count_n(complete_ds, "sexstress")
+all_factors_count <- count_n(complete_ds, "allfactors")
 
 
-high_shock_count <- complete_ds_high %>%
-  group_by(Sex, Stress, Condition) %>%
-  count()
+#' Subset for shock intensity 
+#'
+#' @param dataset A data frame containing the data to be subset.
+#' @param intensity A character string specifying the shock intensity. Valid options are:
+#'   * "Low" - Low shock intensity 0.5mA
+#'   * "High" - High shock intensity 0.7mA
+#' @return The subsetted shock intensity data frame. 
+#' @export
+subset_by_shock_intensity <- function(dataset, intensity){
+  
+  if (intensity == "Low"){
+    subset <- dataset %>% 
+    filter (Shock == "l")
+  }
+  else if (intensity =="High"){
+    subset <- dataset %>% 
+    filter (Shock == "h")
+  }
+  return (subset)
+}
 
-complete_ds_low <- complete_ds %>%
-  filter(Shock == "l")
-complete_ds_low$Shock <- droplevels(complete_ds_low$Shock)
+complete_ds_low <- subset_by_shock_intensity(complete_ds, "Low")
+complete_ds_high <- subset_by_shock_intensity(complete_ds, "High")
 
-low_shock_count <- complete_ds_low %>%
-  group_by(Sex, Stress, Condition) %>%
-  count()
+#### Counts for Low and High ---------------------------------------------------
 
+# Low counts 
+overall_count_low <- count_n(complete_ds_low, "overall")
+sex_count_low <- count_n(complete_ds_low, "sex")
+sex_stress_count_low <- count_n(complete_ds_low, "sexstress")
+all_factors_count_low <- count_n(complete_ds_low, "allfactors")
+
+# High counts
+overall_count_high <- count_n(complete_ds_high, "overall")
+sex_count_high <- count_n(complete_ds_high, "sex")
+sex_stress_count_high <- count_n(complete_ds_high, "sexstress")
+all_factors_count_high <- count_n(complete_ds_high, "allfactors")
+
+#' Generate a subset of the dataset for a specified timepoint
+#'
+#' This function creates a subset of the input dataset, selecting relevant columns based on the specified timepoint.
+#' The function includes timepoint-specific columns and retains the specified factor columns across all timepoints.
+#'
+#' @param dataset A data frame containing the dataset to be subset.
+#' @param timepoint A character string specifying the timepoint for subsetting the dataset. 
+#'   Valid options are:
+#'   * "acquisition" - selects columns "Pre", "Post", and the factor columns.
+#'   * "recall_combined" - selects "recall_1" and the factor columns.
+#'   * "recall_2only" - selects "recall_1" and the factor columns, filtering rows with Condition == 2.
+#'   * "extinction" - selects extinction-related columns and the factor columns.
+#'   * "extinction_recall" - selects "extinction_recall" and the factor columns.
+#'   * "reminder_shock" - selects "reminder_day1_shock" and the factor columns.
+#'   * "reminder_recall" - selects "reminder_day2" and the factor columns.
+#' @return A data frame subset according to the specified timepoint, including the relevant columns.
+#' @details The factor columns retained for each timepoint include "Shock", "Stress", "Sex", and "Condition".
+#'   For the "extinction" timepoint, additional columns representing extinction curves are also included.
+#' @examples
+#' # Subset dataset for acquisition timepoint
+#' acquisition_subset <- select_dataset_timepoint(my_data, "acquisition")
+#' 
+#' # Subset dataset for recall_combined timepoint
+#' recall_combined_subset <- select_dataset_timepoint(my_data, "recall_combined")
+#' 
+#' # Subset dataset for recall_2only timepoint, with Condition == 2
+#' recall_2only_subset <- select_dataset_timepoint(my_data, "recall_2only")
+#' @export
 #### Dataset generation for each timepoint -------------------------------------
 
-#selecting each timepoint and making it a dataset
-freezing_acquisition_high <- complete_ds_high %>%
-  select(1:6)
-freezing_acquisition_low <- complete_ds_low %>%
-  select(1:6)
+select_dataset_timepoint <- function(dataset, timepoint) {
+  valid_choices <- c("acquisition", "recall_combined", "recall_2only", "extinction", "extinction_recall", "reminder_shock", "reminder_recall")
+  
+  # Check if the timepoint is one of the valid choices
+  if (!(timepoint %in% valid_choices)) {
+    # Raise an exception with a custom error message
+    stop(sprintf("Invalid input: '%s'. Valid options are: %s", 
+                 timepoint, paste(valid_choices, collapse = ", ")))
+  }
+  
+  # Factor columns will be retained no matter which timepoint is selected
+  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
+  extinction_cols <- c("ext1_curve", "ext2_curve", "ext3_curve", "ext4_curve", "ext5_curve")
+  
+  subset_dataset <- switch(
+    timepoint,
+    "acquisition" = dataset %>% select(Pre, Post, all_of(factor_cols)),
+    "recall_combined" = dataset %>% select(recall_1, all_of(factor_cols)),
+    "recall_2only" = dataset %>% select(recall_1, all_of(factor_cols)) %>% filter(Condition == 2),
+    "extinction" = dataset %>% select(all_of(extinction_cols), all_of(factor_cols)),
+    "extinction_recall" = dataset %>% select(extinction_recall, all_of(factor_cols)),
+    "reminder_shock" = dataset %>% select(reminder_day1_shock, all_of(factor_cols)),
+    "reminder_recall" = dataset %>% select(reminder_day2, all_of(factor_cols))
+  )
+  
+  # Return the subset dataset
+  return(subset_dataset)
+}
 
-two_minute_extinction_high <- complete_ds_high %>% #combined 2 and 10 minute group
-  select(1:4,"recall_1")
-two_minute_extinction_low <- complete_ds_low %>% #combined 2 and 10 minute group
-  select(1:4,"recall_1")
-#high
-#only the two minute in the 2 minute timepoint
-two_minute_extinction_only2_high <- two_minute_extinction_high %>%
-  filter(Condition == 2)
+# Generate datasets for use below in generating figures and statistics
 
-#making a copy of the ds for a test of na remove
-complete_ds_high_a <- complete_ds_high
-complete_ds_high_a1 <- complete_ds_high_a[!is.na(complete_ds_high_a$ext1_curve),]
+# For "low" category datasets
+low_acquisition <- select_dataset_timepoint(complete_ds_low, "acquisition")
+low_recall_combined <- select_dataset_timepoint(complete_ds_low, "recall_combined")
+low_recall_2only <- select_dataset_timepoint(complete_ds_low, "recall_2only")
+low_extinction <- select_dataset_timepoint(complete_ds_low, "extinction")
+low_extinction_recall <- select_dataset_timepoint(complete_ds_low, "extinction_recall")
+low_reminder_shock <- select_dataset_timepoint(complete_ds_low, "reminder_shock")
+low_reminder_recall <- select_dataset_timepoint(complete_ds_low, "reminder_recall")
 
-#Doing it in this order preserves the
-ten_minute_extinction_high <- complete_ds_high_a %>%
-  select(1:4, 8:12)
-ten_minute_extinction_high <- ten_minute_extinction_high %>%
-  na.omit()
-
-#low
-two_minute_extinction_only2_low <- two_minute_extinction_low %>%
-  filter(Condition == 2)
-
-#making a copy of the ds for a test of na remove
-complete_ds_low_a <- complete_ds_low
-
-complete_ds_low_a1 <- complete_ds_low_a[!is.na(complete_ds_low_a$ext1_curve),]
-
-ten_minute_extinction_low <- complete_ds_low_a %>%
-  select(1:4, 8:12)
-ten_minute_extinction_low <- ten_minute_extinction_low %>%
-  na.omit()
-
-recall_1_high <- complete_ds_high %>%
-  select(1:4, extinction_recall)
-recall_1_high[recall_1_high == '#DIV/0!'] <- NA
-recall_1_low <- complete_ds_low %>%
-  select(2:4, extinction_recall)
-recall_1_low[recall_1_low == '#DIV/0!'] <- NA
-
-reminder_shock_high <- complete_ds_high %>%
-  select(1:4, reminder_day1_shock)
-reminder_shock_low <- complete_ds_low %>%
-  select(2:4, reminder_day1_shock)
-
-reminder_recall_high <- complete_ds_high %>%
-  select(1:4, reminder_day2)
-reminder_recall_low <- complete_ds_low %>%
-  select(2:4, reminder_day2)
+# For "high" category datasets
+high_acquisition <- select_dataset_timepoint(complete_ds_high, "acquisition")
+high_recall_combined <- select_dataset_timepoint(complete_ds_high, "recall_combined")
+high_recall_2only <- select_dataset_timepoint(complete_ds_high, "recall_2only")
+high_extinction <- select_dataset_timepoint(complete_ds_high, "extinction")
+high_extinction_recall <- select_dataset_timepoint(complete_ds_high, "extinction_recall")
+high_reminder_shock <- select_dataset_timepoint(complete_ds_high, "reminder_shock")
+high_reminder_recall <- select_dataset_timepoint(complete_ds_high, "reminder_recall")
 
 
-
-#### FIGURE THEME ##############################################################
+#### TODO convert this to a config file for better management of themes --------
+#### Figure Theme ##############################################################
 blank_figure_theme <- theme(plot.title = element_text(hjust = 0.5),
                             axis.line = element_blank(),
                             panel.grid.minor = element_blank(),
@@ -146,7 +250,7 @@ blank_figure_theme <- theme(plot.title = element_text(hjust = 0.5),
                             axis.text.x = element_text(size = 10, color = "#000000")
                             )
 
-#### Poster FIGURE THEME #### --------------------------------------------
+#### Poster figure theme -------------------------------------------------------
 poster_figure_theme <- theme(plot.title = element_text(hjust = 0.5),
                             axis.line = element_blank(),
                             panel.grid.minor = element_blank(),
@@ -155,22 +259,21 @@ poster_figure_theme <- theme(plot.title = element_text(hjust = 0.5),
                             axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0))
 )
 
-my_annotate_figure_function <- function(figure,title_text, color = "red", face = "bold", size = 14)
+annotate_figure_function <- function(figure,title_text, color = "red", face = "bold", size = 14)
 {
   annotate_figure(p = figure, top = text_grob(title_text, color = color, face = face, size = size))
 }
 
-#### four class colours #### ---------------------------------------------------
+#### Four class colours --------------------------------------------------------
 four_class <- c("#ff1f5b", "#00CD6C", "#009ADE", "#AF58BE")
 orange_blue <- c("#ff870f", "#ffc182", "#1c20fc", "#b3b4ff")
 orange_blue_bar <- c("#b3b4ff","#1c20fc", "#ffc182","#ff870f")
-
 color_pall <- c("#b3b4ff","#b3b4ff","#1c20fc", "#1c20fc", "#ffc182", "#ffc182","#ff870f","#ff870f")
 
-#### two class colours #### ----------------------------------------------------
+#### Two class colours ---------------------------------------------------------
 extinction_colors <- c("#2f58fe", "#c6a605")
 
-#### Will reuse a lot
+#### I have titles here that I will reuse a lot so defining them as variables
 y_title <- "Freezing percentage"
 #pre extinction, the figure for pre and post is in a different order so use a different key.
 x_labels <- c("Male_ELS" = "ELS", "Male_NS" =  "Non-stressed", "Female_ELS" = "ELS", "Female_NS" =  "Non-stressed")
@@ -180,11 +283,22 @@ line_label<-c("Female ELS", "Female NS", "Male ELS", "Male NS")
 key_label <-  c("Male NS", "Male ELS","Female NS", "Female ELS")
 
 
-####HIGH Pre Post -----------------------------------------------------------
+#### Pre Post -----------------------------------------------------------
 #check if the 2 min and 10 min vary at this timepoint.
 complete_ds_high_2_10_analysis <- lm(recall_1 ~ Condition, data = complete_ds_high)
 summary(complete_ds_high_2_10_analysis)
 
+#' Generate the descriptive results for CFM acquisition.
+#' 
+#' Outputs the mean and SEM for the pre and post shock freezing recordings. Inlcudes the option to save the data to a subfolder.
+#' 
+#'  
+#'  
+#'  
+
+generate_descriptives <- function(dataset, timepoint, write_output = FALSE){
+  
+}
 
 make_prepost_descriptives <- function(acquisition_dataset){
   acquisition_dataset_descriptives <- acquisition_dataset %>%
@@ -192,8 +306,8 @@ make_prepost_descriptives <- function(acquisition_dataset){
     summarize(mean_freezing_pre = mean(Pre, na.rm = T), sem_freezing_pre = sd(Pre, na.rm = T)/sqrt(length(Pre)), mean_freezing_post = mean(Post, na.rm = T), sem_freezing_post = sd(Post, na.rm = T)/sqrt(length(Post)))
 }
 
-freezing_prepost_descriptives_low <- make_prepost_descriptives(freezing_acquisition_low)
-freezing_prepost_descriptives_high <- make_prepost_descriptives(freezing_acquisition_high)
+freezing_prepost_descriptives_low <- make_prepost_descriptives(low_acquisition)
+freezing_prepost_descriptives_high <- make_prepost_descriptives(high_acquisition)
 
 write.csv(freezing_prepost_descriptives_low, file = "./Low/Descriptives/freezing_prepost_descriptives_low.csv") 
 write.csv(freezing_prepost_descriptives_high, file = "./High/Descriptives/freezing_prepost_descriptives_high.csv") 
@@ -217,6 +331,26 @@ make_figure_prepost_ds <- function(dataset){
 prepost_figure_ds_low <- make_figure_prepost_ds(freezing_prepost_descriptives_low)
 prepost_figure_ds_high <- make_figure_prepost_ds(freezing_prepost_descriptives_high)
 
+#' Generate a line chart figure with error bars for pre- and post-conditions
+#'
+#' This function creates a line chart from the freezing input dataset containing both pre and post shock,
+#' plotting the mean values across a prepost variable (in long format) with groups defined by sex and stress factors.
+#' The y-axis limit can be customized, and error bars are added to represent the standard error of the mean.
+#'
+#' @param dataset A data frame containing the data to be plotted. It should include the following columns:
+#'   * `prepost` - x-axis values for the pre- and post-conditions, should be in long format.
+#'   * `mean` - mean values to plot on the y-axis.
+#'   * `sex_stress` - a factor defining groups by sex and stress for color differentiation.
+#'   * `sem` - standard error of the mean for error bars.
+#' @param y_axis_limit A numeric value specifying the upper limit of the y-axis. Default is 100.
+#' @return A ggplot object representing the line chart with error bars.
+#' @examples
+#' # Generate a line chart figure with the default y-axis limit
+#' linechart_figure_function(my_data)
+#'
+#' # Generate a line chart figure with a custom y-axis limit
+#' linechart_figure_function(my_data, y_axis_limit = 80)
+#' @export
 linechart_figure_function <- function(dataset, y_axis_limit = 100){
   linechart_prepost_high <- ggplot(dataset, aes(x= prepost, y = mean, group = sex_stress, colour = sex_stress))+
     geom_line(size = 1.0)+
@@ -230,18 +364,17 @@ linechart_figure_function <- function(dataset, y_axis_limit = 100){
 linechart_prepost_low <- linechart_figure_function(prepost_figure_ds_low, y_axis_limit = 100)
 linechart_prepost_high <- linechart_figure_function(prepost_figure_ds_high, y_axis_limit = 100)
 
-count_simple_function <- function(dataset){
-  df_fearcond_count <- dataset %>%
-    group_by(Sex, Stress) %>%
-    count()
-  return(df_fearcond_count)
-}
+#count_simple_function <- function(dataset){
+#  df_fearcond_count <- dataset %>%
+#    group_by(Sex, Stress) %>%
+#    count()
+#  return(df_fearcond_count)
+#}
 
 
 prepost_count_function <- function(dataset){
-  #Count
   
-  df_fearcond_count <- count_simple_function(dataset) 
+  df_fearcond_count <- count_n(dataset, type = "sexstress") 
   
   count_prepost = list()
   for (i in df_fearcond_count$n)
@@ -251,10 +384,9 @@ prepost_count_function <- function(dataset){
   return (count_prepost)
 }
 
-df_fearcond_low_count <- prepost_count_function(freezing_acquisition_low)
-df_fearcond_high_count <- prepost_count_function(freezing_acquisition_high)
+low_count_acquisition <- prepost_count_function(low_acquisition)
+high_count_acquisition <- prepost_count_function(high_acquisition)
 
-#linechart_prepost_high <- linechart_prepost_high + scale_color_manual(labels = line_label ,values = orange_blue)
 low_string = "Low intensity shock"
 high_string = "High intensity shock"
 
@@ -278,19 +410,6 @@ combined_linechart_prepost
 ggsave("combined_linechart_prepost.png", plot =combined_linechart_prepost, path = "./Combined/")
 
 write.csv(freezing_acquisition_long_high, file = "./High/")
-
-
-#inferential stats prepost high#####
-#add ID column
-freezing_acquisition_high$ID <- seq.int(nrow(freezing_acquisition_high))
-freezing_acquisition_long_high <- freezing_acquisition_high %>%
-  pivot_longer(col = c("Pre", "Post"), names_to = "Timepoint", values_to = "Percentage")
-
-freezing_acquisition_long_high$Timepoint <- as.factor(freezing_acquisition_long_high$Timepoint)
-prepost_aov_high <- aov(data = freezing_acquisition_long_high, Percentage ~ Sex*Stress*Timepoint)
-summary(prepost_aov_high)
-
-TukeyHSD(prepost_aov_high)
 
 
 #### 2 minute Recall #############################################################
@@ -814,27 +933,6 @@ combined_reminder_recall
 
 #### Low intensity shock ----------------------------------------------------------------
 #filter for low
-
-freezing_acquisition_low <- complete_ds_low %>%
-  select(1:6)
-
-two_minute_extinction_low <- complete_ds_low %>%
-  select(2:4,"recall_1")
-
-ten_minute_extinction_low <- complete_ds_low %>%
-  na.omit() %>%
-  select(2:4, 8:12)
-
-recall_1_low <- complete_ds_low %>%
-  select(2:4, extinction_recall)
-recall_1[recall_1 == '#DIV/0!'] <- NA
-
-reminder_shock_low <- complete_ds_low %>%
-  select(2:4, reminder_day1_shock)
-
-reminder_recall_low <- complete_ds_low %>%
-  select(2:4, reminder_day2)
-
 low_freezing_prepost_descriptives <- freezing_acquisition_low %>%
   group_by(Sex, Stress)%>%
   summarize(mean_freezing_pre = mean(Pre, na.rm = T), sem_freezing_pre = sd(Pre, na.rm = T)/sqrt(length(Pre)), mean_freezing_post = mean(Post, na.rm = T), sem_freezing_post = sd(Post, na.rm = T)/sqrt(length(Post)))
@@ -1415,43 +1513,6 @@ generate_two_ten_grid_figure <- function(wide_dataset){
 
 low_combined_recall_reminder_remrecall<- generate_two_ten_grid_figure(complete_ds_low_combined_recall_remshock_remrecall_noNA)
 high_combined_recall_reminder_remrecall<- generate_two_ten_grid_figure(complete_ds_high_combined_recall_remshock_remrecall_noNA)
+
 low_combined_recall_reminder_remrecall
 high_combined_recall_reminder_remrecall
-# generate_extinctionrecall_reminder_remrecall_figure_function <- function(wide_dataset_noNA, isCombined = TRUE, largest_value){
-#   
-#   combined_recall_remshock_remrecall_descr <- wide_dataset_noNA %>%
-#     unite("sex_stress", c(Sex, Stress)) %>% 
-#     group_by(sex_stress) %>% 
-#     summarise(mean_recall = mean(extinction_recall, na.rm = T), sem_recall = sd(extinction_recall, na.rm = T)/sqrt(length(extinction_recall)),
-#               mean_remshock = mean(reminder_day1_shock, na.rm = T), sem_remshock = sd(reminder_day1_shock, na.rm = T)/sqrt(length(reminder_day1_shock)),
-#               mean_remrecall = mean(reminder_day2, na.rm = T), sem_remrecall = sd(reminder_day2, na.rm = T)/sqrt(length(reminder_day2)),
-#     )
-#   
-#   combined_recall_remshock_remrecall_descr_long <- combined_recall_remshock_remrecall_descr %>% 
-#     pivot_longer(cols = c(mean_recall, mean_remshock, mean_remrecall, sem_recall, sem_remshock, sem_remrecall),
-#                  names_to = c(".value","timepoint"), names_pattern = "(.*?)_(.*)") %>% 
-#     mutate(fig_timepoint = factor(timepoint, levels = c("recall", "remshock", "remrecall")))
-#   
-#   combined_recall_remshock_remrecall_descr_long$subject <- rep(1:nrow(combined_recall_remshock_remrecall_descr), each = 3)
-#   combined_recall_remshock_remrecall_descr_long$timepoint <- as.factor(combined_recall_remshock_remrecall_descr_long$timepoint)
-#   
-#   recall_reminder_figure_combined <- ggplot(data = combined_recall_remshock_remrecall_descr_long, aes(x = timepoint, y = mean, group = sex_stress, color = sex_stress)) + 
-#     geom_line(size = 1) +
-#     geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), width=.2, alpha = 0.7)+
-#     coord_cartesian(ylim = c(0, largest_value)) 
-#   
-#   recall_reminder_figure_combined <- recall_reminder_figure_combined + scale_x_discrete(labels = c("recall" = "Extinction recall", "remrecall" = "Reminder session", "remshock" = "Reminder recall"))
-#   recall_reminder_figure_combined <- recall_reminder_figure_combined + scale_color_manual(labels = c("Female_ELS" = "Female ELS", "Female_NS" = "Female non-stressed", "Male_ELS" = "Male ELS", "Male_NS" = "Male Non-stressed"), values = c("#ff870f", "#ffc182", "#1c20fc", "#b3b4ff"))
-#   if (isCombined == TRUE) {
-#     # Dont add an axis title to either graphs 
-#     recall_reminder_figure_combined <- recall_reminder_figure_combined + labs(x = NULL, y = NULL, group = "Group", color = "Group")
-#   }
-
-#   else {
-#     recall_reminder_figure_combined <- recall_reminder_figure_combined + labs(x = "Timepoint", y = "Freezing percentage", group = "Group", color = "Group")
-#     
-#   }
-#   recall_reminder_figure_combined <- recall_reminder_figure_combined + blank_figure_theme
-#   
-#   return (recall_reminder_figure_combined)
-# }
