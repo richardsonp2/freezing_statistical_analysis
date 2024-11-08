@@ -1,5 +1,6 @@
 # Freezing Statistical Analysis
-This repository contains statistical analysis and associated data on freezing behavior, a critical component of my thesis research. Freezing behavior analysis provides insights into stress responses, learning, memory, and behavioral adaptation under different conditions. This specific project aimed to examine the effects of early life stress (as is seen in <Brydges et al, https://onlinelibrary.wiley.com/doi/full/10.1002/hipo.22259 >.
+This repository contains statistical analysis and associated data on freezing behavior, a critical component of my thesis research. Freezing behavior analysis provides insights into stress responses, learning, memory, and behavioral adaptation under different conditions. This specific project aimed to examine the effects of early life stress, as seen in [Brydges et al.](https://onlinelibrary.wiley.com/doi/full/10.1002/hipo.22259).
+
 
 
 ## Features and Analyses
