@@ -288,15 +288,25 @@ key_label <-  c("Male NS", "Male ELS","Female NS", "Female ELS")
 complete_ds_high_2_10_analysis <- lm(recall_1 ~ Condition, data = complete_ds_high)
 summary(complete_ds_high_2_10_analysis)
 
-#' Generate the descriptive results for CFM acquisition.
+#' Generate the descriptive results for any of the timepoints. 
 #' 
-#' Outputs the mean and SEM for the pre and post shock freezing recordings. Inlcudes the option to save the data to a subfolder.
+#' Outputs the mean and SEM for the following timepoints the pre and post shock freezing recordings. Inlcudes the option to save the data to a subfolder.
 #' 
 #'  
 #'  
 #'  
 
 generate_descriptives <- function(dataset, timepoint, write_output = FALSE){
+  valid_choices <- c("acquisition", "recall_combined", "recall_2only", "extinction", "extinction_recall", "reminder_shock", "reminder_recall")
+  
+  # Check if the timepoint is one of the valid choices
+  if (!(timepoint %in% valid_choices)) {
+    # Raise an exception with a custom error message
+    stop(sprintf("Invalid input: '%s'. Valid options are: %s", 
+                 timepoint, paste(valid_choices, collapse = ", ")))
+  }
+  
+  
   
 }
 
@@ -498,7 +508,7 @@ combined_2min_bar
 ggsave("combined_barchart_2min.png", plot =combined_2min_bar, path = "./Combined/")
 
 
-
+# TODO remove this
 #inferentials
 #Low
 recall_lm_low <- lm(data = df_2minext_low, recall_1 ~ Sex*Stress)
