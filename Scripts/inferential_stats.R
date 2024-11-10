@@ -1165,12 +1165,42 @@ reminder_rm_combined_figure_low <- ggarrange(reminder_figure_low_rem_na_2, remin
 reminder_rm_combined_figure_low + scale_y_continuous(expand = c(0, 0), limits = c(0, 80))
 reminder_rm_combined_figure_low
 
-# ANALYSIS FOR KERRIES EMAIL 25/08/23 ########
-complete_ds_2_low
-complete_ds_2_high
-complete_ds_10_low
-complete_ds_10_high
+# After discussion with my supervisor Kerrie Thomas 25/08/23, it was agreed to present longitudinal figures. 
+# Functions below are to generate the inferential statistics to examine results shown in these figures.
 
+# complete_ds_2_low
+# complete_ds_2_high
+# complete_ds_10_low
+# complete_ds_10_high
+
+#' Transform dataset into long format for longitudinal analysis of freezing behavior
+#'
+#' This function reshapes a dataset into long format for analyzing freezing behavior
+#' across different time points. It allows for optional selection of only recall-related
+#' variables or all variables, including shock reminders.
+#'
+#' @param dataset A data frame containing the variables `Sex`, `Stress`, `recall_1`, 
+#'   `extinction_recall`, `reminder_day1_shock`, and `reminder_day2`.
+#' @param isConditionsplit Logical; if `TRUE`, allows splitting by additional conditions (not used in current code).
+#' @param isRecallOnly Logical; if `TRUE`, includes only recall-related columns (`recall_1` and `extinction_recall`) 
+#'   for transformation. If `FALSE`, includes all available timepoints (`recall_1`, `extinction_recall`, 
+#'   `reminder_day1_shock`, `reminder_day2`).
+#'
+#' @return A data frame in long format with columns:
+#'   - `Sex`: Factor for sex of the subject.
+#'   - `Stress`: Factor for stress condition of the subject.
+#'   - `timepoint`: Name of the timepoint variable (e.g., "recall_1", "extinction_recall").
+#'   - `freezing_percentage`: Freezing percentage value for each timepoint.
+#'   - `id`: Unique identifier for each subject across timepoints.
+#'
+#' @examples
+#' # Reshape dataset including only recall-related columns
+#' make_longitudinal(data, isRecallOnly = TRUE)
+#'
+#' # Reshape dataset including all columns
+#' make_longitudinal(data, isRecallOnly = FALSE)
+#'
+#' @export
 make_longitudinal <- function(dataset, isConditionsplit = FALSE, isRecallOnly = FALSE){
   #factor_cols <- c("Sex", "Stress")
   #dataset_selected[factor_cols] <- lapply(dataset_selected[factor_cols], factor)
@@ -1280,3 +1310,22 @@ F_ELS_aov <- aov(freezing_percentage ~ timepoint + Error(id/(timepoint)), data =
 summary(F_ELS_aov)
 F_NS_aov <-  aov(freezing_percentage ~ timepoint + Error(id/(timepoint)), data = F_NS_data)
 summary(F_NS_aov)
+
+#inferentials from other script
+
+# Check 2 minute group from LTM1 bars vs 10 minute group: first 2 minutes.
+fem_non_stress_2 <- two_min_group_only %>%
+  filter(Stress == "NS", Sex == "Female") %>%
+  select(Stress, Sex, Condition, recall_1)
+
+fem_non_stress10_2min <- ten_minute_extinction %>%
+  filter(Stress == "NS", Sex == "Female") %>%
+  select(Stress, Sex, Condition, ext1_curve) %>%
+  rename(recall_1 = ext1_curve)
+
+
+
+#Combine the datasets
+combined210_test <- bind_rows(fem_non_stress_2, fem_non_stress10_2min)
+t_result <- t.test(recall_1 ~ Condition, data = combined210_test)
+t_result

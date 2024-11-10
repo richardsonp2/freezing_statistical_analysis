@@ -12,8 +12,15 @@ library(emmeans)
 # The dataset contains some artifacts which were in place to make manually scoring behaivour easier. For example putting in X's where freezing was absent. 
 # The dataset also contains artifacts accidently put in during the manual scoring of the behaviour. 
 # Many rows will have NA values due to either not recording the freezing on that day, or being a 10 minute point in the 2 minute group. 
-
+# I am thinking of making this into a package for any future freezing analysis needs. This is why most of the code is commented with Roxygen comments.
 file_path <- "./Datasets/high_low_combined.csv"
+
+# I will use these throughout the script to select by different columns
+factor_cols <- c("Shock", "Stress", "Sex", "Condition")
+num_cols <- c("Pre", "Post", "recall_1", "ext1_curve", "ext2_curve", 
+              "ext3_curve", "ext4_curve", "ext5_curve", 
+              "extinction_recall", "reminder_day1_shock", "reminder_day2")
+
 
 # Function to read and clean the dataset
 clean_dataset <- function(file_path) {
@@ -53,6 +60,8 @@ clean_factors <- function(ds) {
   
   # Reverse the factor levels for 'Condition'
   ds$Condition <- fct_rev(ds$Condition)
+
+
   
   return(ds)
 }
@@ -62,7 +71,16 @@ clean_factors <- function(ds) {
 complete_ds <- clean_dataset(file_path)
 complete_ds <- convert_columns(complete_ds)
 complete_ds <- clean_factors(complete_ds)
+str(complete_ds)
 
+# I have inputted Male, M, Female and F for sex accidentally during the freezing analysis
+# Fix that here, bit of a complex workaround but I was having issues with dplyr 
+complete_ds$Sex <- as.character(complete_ds$Sex)
+complete_ds$Sex[complete_ds$Sex == "M"] <- "Male"
+complete_ds$Sex[complete_ds$Sex == "F"] <- "Female"
+
+# Optionally, you can convert it back to a factor if needed:
+complete_ds$Sex <- as.factor(complete_ds$Sex)
 # Display the structure of the cleaned dataset
 str(complete_ds)
 
@@ -264,11 +282,12 @@ annotate_figure_function <- function(figure,title_text, color = "red", face = "b
   annotate_figure(p = figure, top = text_grob(title_text, color = color, face = face, size = size))
 }
 
-#### Four class colours --------------------------------------------------------
+# Four class colours --------------------------------------------------------
 four_class <- c("#ff1f5b", "#00CD6C", "#009ADE", "#AF58BE")
 orange_blue <- c("#ff870f", "#ffc182", "#1c20fc", "#b3b4ff")
 orange_blue_bar <- c("#b3b4ff","#1c20fc", "#ffc182","#ff870f")
 color_pall <- c("#b3b4ff","#b3b4ff","#1c20fc", "#1c20fc", "#ffc182", "#ffc182","#ff870f","#ff870f")
+
 
 #### Two class colours ---------------------------------------------------------
 extinction_colors <- c("#2f58fe", "#c6a605")
@@ -283,52 +302,58 @@ line_label<-c("Female ELS", "Female NS", "Male ELS", "Male NS")
 key_label <-  c("Male NS", "Male ELS","Female NS", "Female ELS")
 
 
-#### Pre Post -----------------------------------------------------------
-#check if the 2 min and 10 min vary at this timepoint.
-complete_ds_high_2_10_analysis <- lm(recall_1 ~ Condition, data = complete_ds_high)
-summary(complete_ds_high_2_10_analysis)
 
-#' Generate the descriptive results for any of the timepoints. 
-#' 
-#' Outputs the mean and SEM for the following timepoints the pre and post shock freezing recordings. Inlcudes the option to save the data to a subfolder.
-#' 
-#'  
-#'  
-#'  
 
-generate_descriptives <- function(dataset, timepoint, write_output = FALSE){
-  valid_choices <- c("acquisition", "recall_combined", "recall_2only", "extinction", "extinction_recall", "reminder_shock", "reminder_recall")
+##### Acquisition ---------------------------------------------------------
+#' Generate descriptive statistics for pre- and post-shock during CFC acquistion
+#'
+#' This function calculates the mean and standard error of the mean (SEM) for 
+#' pre- and post-shock , grouped by `Sex` and `Stress` variables. 
+#' The results can optionally be written to a CSV file, with separate files 
+#' for low and high shock intensities (in the most up to date version 10/11/24, low shock is 0.5mA, high is
+#' 0.7mA.
+#'
+#' @param dataset A data frame containing the variables `Sex`, `Stress`, `Pre`, and `Post` 
+#'   representing the factors and freezing measurements (before and after treatment).
+#' @param shock_intensity A character string specifying the shock intensity level 
+#'   ("Low" or "High"). Determines the output file location.
+#' @param write_file Logical; if `TRUE`, writes the summary statistics to a CSV file 
+#'   based on the specified shock intensity.
+#'
+#' @return A data frame with the mean and SEM of freezing behavior pre- and post-treatment, 
+#'   grouped by `Sex` and `Stress`.
+#'
+#' @examples
+#' # Generate descriptives and save the output to a CSV file
+#' make_prepost_descriptives(data, shock_intensity = "Low", write_file = TRUE)
+#'
+#' @export
+make_prepost_descriptives <- function(dataset, shock_intensity, write_file = TRUE) {
+  acquisition_descriptives <- dataset %>%
+    group_by(Sex, Stress) %>%
+    summarize(
+      mean_freezing_pre = mean(Pre, na.rm = TRUE), 
+      sem_freezing_pre = sd(Pre, na.rm = TRUE) / sqrt(length(Pre)), 
+      mean_freezing_post = mean(Post, na.rm = TRUE), 
+      sem_freezing_post = sd(Post, na.rm = TRUE) / sqrt(length(Post))
+    )
   
-  # Check if the timepoint is one of the valid choices
-  if (!(timepoint %in% valid_choices)) {
-    # Raise an exception with a custom error message
-    stop(sprintf("Invalid input: '%s'. Valid options are: %s", 
-                 timepoint, paste(valid_choices, collapse = ", ")))
+  if (write_file == TRUE) {
+    if (shock_intensity == "Low") {
+      write.csv(acquisition_descriptives, file = "./Low/Descriptives/freezing_prepost_descriptives_low.csv")
+    } else {
+      write.csv(acquisition_descriptives, file = "./High/Descriptives/freezing_prepost_descriptives_high.csv")
+    }
   }
   
-  
-  
+  return(acquisition_descriptives)
 }
 
-make_prepost_descriptives <- function(acquisition_dataset){
-  acquisition_dataset_descriptives <- acquisition_dataset %>%
-    group_by(Sex, Stress)%>%
-    summarize(mean_freezing_pre = mean(Pre, na.rm = T), sem_freezing_pre = sd(Pre, na.rm = T)/sqrt(length(Pre)), mean_freezing_post = mean(Post, na.rm = T), sem_freezing_post = sd(Post, na.rm = T)/sqrt(length(Post)))
-}
-
-freezing_prepost_descriptives_low <- make_prepost_descriptives(low_acquisition)
-freezing_prepost_descriptives_high <- make_prepost_descriptives(high_acquisition)
-
-write.csv(freezing_prepost_descriptives_low, file = "./Low/Descriptives/freezing_prepost_descriptives_low.csv") 
-write.csv(freezing_prepost_descriptives_high, file = "./High/Descriptives/freezing_prepost_descriptives_high.csv") 
+freezing_prepost_descriptives_low <- make_prepost_descriptives(low_acquisition, "Low", write_file = TRUE)
+freezing_prepost_descriptives_high <- make_prepost_descriptives(high_acquisition, "High", write_file = TRUE)
 
 
-make_prepost_long <- function(prepost_descriptives){
-  prepost_descriptives_figure <-  freezing_prepost_descriptives %>%
-    unite(sex_stress, c(Sex, Stress), remove=TRUE) %>%
-    pivot_longer(cols = c(mean_freezing_pre, mean_freezing_post, sem_freezing_pre, sem_freezing_post), names_to = c(".value","prepost"), names_pattern = "(.*?)_(.*)") %>%
-    mutate(prepost = fct_reorder(prepost, desc(prepost)))
-}
+# For the kind of figure that I want to generate I need to unite Sex and Stress together as one variable.
 
 make_figure_prepost_ds <- function(dataset){
   prepost_figure_ds <-  dataset %>%
@@ -361,7 +386,7 @@ prepost_figure_ds_high <- make_figure_prepost_ds(freezing_prepost_descriptives_h
 #' # Generate a line chart figure with a custom y-axis limit
 #' linechart_figure_function(my_data, y_axis_limit = 80)
 #' @export
-linechart_figure_function <- function(dataset, y_axis_limit = 100){
+linechart_prepost_figure_function <- function(dataset, y_axis_limit = 100){
   linechart_prepost_high <- ggplot(dataset, aes(x= prepost, y = mean, group = sex_stress, colour = sex_stress))+
     geom_line(size = 1.0)+
     coord_cartesian(ylim = c(0, y_axis_limit)) +
@@ -371,15 +396,16 @@ linechart_figure_function <- function(dataset, y_axis_limit = 100){
     scale_y_continuous(breaks=seq(0,y_axis_limit,20))
 }
 
-linechart_prepost_low <- linechart_figure_function(prepost_figure_ds_low, y_axis_limit = 100)
-linechart_prepost_high <- linechart_figure_function(prepost_figure_ds_high, y_axis_limit = 100)
+linechart_prepost_low <- linechart_prepost_figure_function(prepost_figure_ds_low, y_axis_limit = 100)
+linechart_prepost_high <- linechart_prepost_figure_function(prepost_figure_ds_high, y_axis_limit = 100)
 
-#count_simple_function <- function(dataset){
-#  df_fearcond_count <- dataset %>%
-#    group_by(Sex, Stress) %>%
-#    count()
-#  return(df_fearcond_count)
-#}
+# Needed for a few of the downstream analyses
+count_simple_function <- function(dataset){
+ df_fearcond_count <- dataset %>%
+   group_by(Sex, Stress) %>%
+   count()
+ return(df_fearcond_count)
+}
 
 
 prepost_count_function <- function(dataset){
@@ -410,8 +436,8 @@ linechart_count_and_titles <- function(figure, count_list, shock_intensity = low
   
 }
 
-low_figure <- linechart_count_and_titles(linechart_prepost_low, df_fearcond_low_count, shock_intensity = low_string)
-high_figure <- linechart_count_and_titles(linechart_prepost_high, df_fearcond_high_count, shock_intensity = high_string)
+low_figure <- linechart_count_and_titles(linechart_prepost_low, low_count_acquisition, shock_intensity = low_string)
+high_figure <- linechart_count_and_titles(linechart_prepost_high, high_count_acquisition, shock_intensity = high_string)
 
 #Have to think of how to add the n's
 combined_linechart_prepost<- ggarrange(low_figure, high_figure, ncol=2, nrow=1, labels = "auto", common.legend = FALSE, legend="bottom")
@@ -419,10 +445,8 @@ combined_linechart_prepost <- annotate_figure(combined_linechart_prepost, left =
 combined_linechart_prepost
 ggsave("combined_linechart_prepost.png", plot =combined_linechart_prepost, path = "./Combined/")
 
-write.csv(freezing_acquisition_long_high, file = "./High/")
 
-
-#### 2 minute Recall #############################################################
+#### Recall --------------------------------------------------------------------
 filter_2min_recall_function <- function(dataset){
   df_2minext <- dataset %>%
     select(all_of(factor_cols), "recall_1") %>%
@@ -446,19 +470,19 @@ two_minute_descriptives_function <- function(dataset){
   #write.csv(two_minute_descriptives, file = "./High/Descriptives/two_minute_descriptives.csv")
   
 }
-low_two_minute_descriptives <- two_minute_descriptives_function(two_minute_extinction_low)
-high_two_minute_descriptives <- two_minute_descriptives_function(two_minute_extinction_high)
+low_two_minute_descriptives <- two_minute_descriptives_function(df_2minext_low)
+high_two_minute_descriptives <- two_minute_descriptives_function(df_2minext_high)
 
-two_minute_extinction_low_count <- count_simple_function(two_minute_extinction_low)
-two_minute_extinction_high_count <- count_simple_function(two_minute_extinction_high)
+two_minute_extinction_low_count <- count_simple_function(df_2minext_low)
+two_minute_extinction_high_count <- count_simple_function(df_2minext_high)
 
 
 
 # Is this needed? 
-two_minute_indivpoints <- two_minute_extinction %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress, c(Sex, Stress), remove=FALSE)
-two_minute_indivpoints$sex_stress <- factor(two_minute_indivpoints$sex_stress,levels = c("Male_ELS", "Male_NS", "Female_ELS", "Female_NS"))
+# two_minute_indivpoints <- two_minute_extinction %>%
+#   mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
+#   unite(sex_stress, c(Sex, Stress), remove=FALSE)
+# two_minute_indivpoints$sex_stress <- factor(two_minute_indivpoints$sex_stress,levels = c("Male_ELS", "Male_NS", "Female_ELS", "Female_NS"))
 
 recall_results <- two_minute_descriptives %>%
   unite(sex_stress, c(figures_sex, Stress), remove = FALSE)
@@ -500,9 +524,9 @@ generate_recall_2min_figure <- function(dataset, shock_intensity = low_string){
 ext_2min_figure_low <- generate_recall_2min_figure(df_2minext_low, shock_intensity = low_string)
 ext_2min_figure_high <- generate_recall_2min_figure(df_2minext_high, shock_intensity = high_string)
 
-
+# Show the figures side by side with the themes applied
 combined_2min_bar <- ggarrange(ext_2min_figure_low, ext_2min_figure_high, ncol=2, nrow=1, labels = "auto", common.legend = TRUE, legend="bottom")
-combined_2min_bar <- combined_2min_bar <- my_annotate_figure_function(figure = combined_2min_bar, title_text = NULL)
+combined_2min_bar <- combined_2min_bar <- annotate_figure_function(figure = combined_2min_bar, title_text = NULL)
 combined_2min_bar <- annotate_figure(combined_2min_bar, left = textGrob("Freezing percentage", rot = 90, vjust = 1,hjust= 0.3, gp = gpar(cex = 1.3)))
 combined_2min_bar
 ggsave("combined_barchart_2min.png", plot =combined_2min_bar, path = "./Combined/")
@@ -525,6 +549,7 @@ low_2min_0responders <- df_2minext_low %>%
   group_by(Sex,Stress) %>%
   filter(recall_1 == 0) %>%
   count()
+
 low_2min <- df_2minext_low %>%
   group_by(Sex,Stress) %>%
   count()
@@ -537,265 +562,175 @@ high_2min <- df_2minext_high %>%
   group_by(Sex,Stress) %>%
   count()
 
-# bar_chart_recall1 <- ggplot(two_minute_indivpoints, aes(x = sex_stress, y = recall_1,  fill = sex_stress))
-#
-#
-# bar_chart_recall1 <- bar_chart_recall1 + geom_bar(position = 'dodge', stat = 'summary', fun.y = 'mean')+
-#   facet_wrap(~figures_sex, strip.position = "bottom", scales = "free_x")+
-#   coord_cartesian(ylim = c(0, 110)) +
-#   scale_y_continuous(breaks=seq(0,110,5), expand = c(0,0))+
-#   geom_point(aes(x = sex_stress, y = recall_1), position =
-#                position_jitterdodge(jitter.width = 0.4, jitter.height=0.1,
-#                                     dodge.width=0.9), alpha = 0.6) +
-#   geom_errorbar(stat = 'summary', position = position_dodge(width = 0.9), width = 0.5)
-#                 position=position_dodge(.9)
-#
-# bar_chart_recall1 <- bar_chart_recall1 + scale_x_discrete(labels = x_labels)
-# bar_chart_recall1 <- bar_chart_recall1 + scale_fill_manual(labels =c("Male ELS","Male NS", "Female ELS", "Female NS"),values= c("#1c20fc", "#b3b4ff","#ff870f", "#ffc182"))
-# bar_chart_recall1 <- bar_chart_recall1 + labs(title="High intensity shock", x = NULL, y = NULL, fill = "Sex and stress type")
-# bar_chart_recall1 <- bar_chart_recall1 + blank_figure_theme
-#
-# bar_chart_recall1
-# #High intensity shock
-# ggsave("Recall.png", plot = bar_chart_recall_1, path = "./High/Figures/")
 
-####10 minute extinction HIGH ##################################################
-#Remove the female with NA's 
-ten_minute_extinction_high <- ten_minute_extinction_high %>% 
+#### Extinction ##################################################
+
+extinction_descriptives <- function(dataset){
+  
+  # Without removing the na values the figure wont be able to be generated
+  dataset <- dataset %>% 
+    na.omit()
+  
+  extinction_long_descriptives <- dataset %>%
+    unite(sex_stress, c(Sex, Stress), remove=TRUE)%>%
+    group_by(sex_stress) %>%
+    summarise(mean_tencurve1 = mean(ext1_curve), mean_tencurve2 = mean(ext2_curve), mean_tencurve3 = mean(ext3_curve), mean_tencurve4 = mean(ext4_curve), mean_tencurve5 = mean(ext5_curve),
+              sem_tencurve1 = sd(ext1_curve)/sqrt(length(ext1_curve)), sem_tencurve2 = sd(ext2_curve)/sqrt(length(ext2_curve)),sem_tencurve3 = sd(ext3_curve)/sqrt(length(ext3_curve)),sem_tencurve4 = sd(ext4_curve)/sqrt(length(ext4_curve)), sem_tencurve5 = sd(ext1_curve)/sqrt(length(ext1_curve))) %>%
+    pivot_longer(cols = c(mean_tencurve1, mean_tencurve2, mean_tencurve3, mean_tencurve4, mean_tencurve5, sem_tencurve1, sem_tencurve2, sem_tencurve3, sem_tencurve4, sem_tencurve5),
+                 names_to = c(".value","timepoint"), names_pattern = "(.*?)_(.*)")
+  
+  # Make sure these stay as a factor
+  extinction_long_descriptives$sex_stress <- as.factor(extinction_long_descriptives$sex_stress)
+  extinction_long_descriptives$timepoint <- as.factor(extinction_long_descriptives$timepoint)
+  return (extinction_long_descriptives)
+}
+extinction_descriptives_low <- extinction_descriptives(low_extinction)
+extinction_descriptives_high <- extinction_descriptives(high_extinction)
+
+
+#count
+# Note have to remove the na values 
+
+low_extinction_wo_na <- low_extinction %>% 
+  na.omit()
+high_extinction_wo_na <- high_extinction %>% 
   na.omit()
 
-extinction_time_groups_descr <- ten_minute_extinction_high %>%
-  unite(sex_stress, c(Sex, Stress), remove=TRUE)%>%
-  group_by(sex_stress) %>%
-  summarise(mean_tencurve1 = mean(ext1_curve), mean_tencurve2 = mean(ext2_curve), mean_tencurve3 = mean(ext3_curve), mean_tencurve4 = mean(ext4_curve), mean_tencurve5 = mean(ext5_curve),
-            sem_tencurve1 = sd(ext1_curve)/sqrt(length(ext1_curve)), sem_tencurve2 = sd(ext2_curve)/sqrt(length(ext2_curve)),sem_tencurve3 = sd(ext3_curve)/sqrt(length(ext3_curve)),sem_tencurve4 = sd(ext4_curve)/sqrt(length(ext4_curve)), sem_tencurve5 = sd(ext1_curve)/sqrt(length(ext1_curve))) %>%
-  pivot_longer(cols = c(mean_tencurve1, mean_tencurve2, mean_tencurve3, mean_tencurve4, mean_tencurve5, sem_tencurve1, sem_tencurve2, sem_tencurve3, sem_tencurve4, sem_tencurve5),
-               names_to = c(".value","timepoint"), names_pattern = "(.*?)_(.*)")
 
-extinction_time_groups_descr$sex_stress <- as.factor(extinction_time_groups_descr$sex_stress)
-extinction_time_groups_descr$timepoint <- as.factor(extinction_time_groups_descr$timepoint)
-#count
+low_count_extinction <- count_n(low_extinction_wo_na,type = "sexstress")
+high_count_extinction <- count_n(high_extinction_wo_na,type = "sexstress")
 
-ten_minute_extinction_high_count <- ten_minute_extinction_high %>%
-  group_by(Sex, Stress, Condition) %>%
-  count()
+extinction_figure <- function(dataset, intensity, count_dataset){
+  extinction_curve_figure <- ggplot(dataset, aes(x = timepoint, y = mean, group = sex_stress, color = sex_stress)) +
+    geom_line() +
+    geom_point() +
+    coord_cartesian(ylim = c(0, 100)) +
+    scale_y_continuous(breaks=seq(0,100,25), expand = c(0,0))+
+    geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), width=.2, alpha = 0.7)
+  
+  # Count values for each group
+  male_els <- count_dataset %>% filter(Sex == "Male", Stress == "ELS") %>% pull(n)
+  male_ns <- count_dataset %>% filter(Sex == "Male", Stress == "NS") %>% pull(n)
+  female_els <- count_dataset %>% filter(Sex == "Female", Stress == "ELS") %>% pull(n)
+  female_ns <- count_dataset %>% filter(Sex == "Female", Stress == "NS") %>% pull(n)
+  
+  
+  extinction_curve_figure <- extinction_curve_figure + scale_x_discrete(labels = c("tencurve1" = "2 mins", "tencurve2"= "4 mins", "tencurve3" = "6 mins", "tencurve4" = "8 mins", "tencurve5" = "10 mins"))
+  extinction_curve_figure <- extinction_curve_figure + scale_color_manual(labels = c(
+        "Male_ELS" = sprintf("Male ELS\n n = %s", male_els),
+        "Male_NS" = sprintf("Male NS\n n = %s", male_ns),
+        "Female_ELS" = sprintf("Female ELS\n n = %s", female_els),
+        "Female_NS" = sprintf("Female NS\n n = %s", female_ns)
+      ),values = orange_blue)
+  if (intensity == "Low"){
+    extinction_curve_figure <- extinction_curve_figure + labs(title="Low intensity shock", x = NULL, y = NULL, group = "Group", color = "Group")
+  }
+  else if (intensity == "High"){
+    extinction_curve_figure <- extinction_curve_figure + labs(title="High intensity shock", x = NULL, y = NULL, group = "Group", color = "Group")
+  }
 
-# add n's to figure
-# n loop
-high_count_10min = list()
-for (i in ten_minute_extinction_high_count$n)
-{
-  high_count_10min <- append(high_count_10min,i)
+  extinction_curve_figure <- extinction_curve_figure + blank_figure_theme
+  extinction_curve_figure <- extinction_curve_figure + theme(legend.position = c(0.8, 0.7))
+  return (extinction_curve_figure)
 }
 
-extinction_curve_figure_high <- ggplot(data = extinction_time_groups_descr, aes(x = timepoint, y = mean, group = sex_stress, color = sex_stress)) +
-  geom_line() +
-  geom_point() +
-  coord_cartesian(ylim = c(0, 100)) +
-  scale_y_continuous(breaks=seq(0,100,25), expand = c(0,0))+
-  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), width=.2, alpha = 0.7)
-
-extinction_curve_figure_high <- extinction_curve_figure_high + scale_x_discrete(labels = c("tencurve1" = "2 mins", "tencurve2"= "4 mins", "tencurve3" = "6 mins", "tencurve4" = "8 mins", "tencurve5" = "10 mins"))
-extinction_curve_figure_high <- extinction_curve_figure_high + scale_color_manual(labels = c("Male_ELS" = sprintf("Male ELS\n n = %s", high_count_10min[3]), "Male_NS" =  sprintf("Male NS\n n = %s", high_count_10min[4]), "Female_ELS" = sprintf("Female ELS\n n = %s", high_count_10min[1]), "Female_NS" =  sprintf("Female NS\n n = %s", high_count_10min[2])), values= orange_blue)
-extinction_curve_figure_high <- extinction_curve_figure_high + labs(title="High intensity shock", x = NULL, y = NULL, group = "Group", color = "Group")
-extinction_curve_figure_high <- extinction_curve_figure_high + blank_figure_theme
-extinction_curve_figure_high <- extinction_curve_figure_high + theme(legend.position = c(0.8, 0.7))
-
-extinction_curve_figure_high
-
-ggsave("Extinction_lines_high.png", plot = extinction_curve_figure, path = "./High/Figures/")
-
-####10 minute extinction LOW  ##################################################
-write_csv(ten_minute_extinction_low, "./Datasets/ten_minute_extinction_low.csv")
-extinction_time_groups_descr_low <- ten_minute_extinction_low %>%
-  unite(sex_stress, c(Sex, Stress), remove=TRUE)%>%
-  group_by(sex_stress) %>%
-  summarise(mean_tencurve1 = mean(ext1_curve), mean_tencurve2 = mean(ext2_curve), mean_tencurve3 = mean(ext3_curve), mean_tencurve4 = mean(ext4_curve), mean_tencurve5 = mean(ext5_curve),
-            sem_tencurve1 = sd(ext1_curve)/sqrt(length(ext1_curve)), sem_tencurve2 = sd(ext2_curve)/sqrt(length(ext2_curve)),sem_tencurve3 = sd(ext3_curve)/sqrt(length(ext3_curve)),sem_tencurve4 = sd(ext4_curve)/sqrt(length(ext4_curve)), sem_tencurve5 = sd(ext1_curve)/sqrt(length(ext1_curve))) %>%
-  pivot_longer(cols = c(mean_tencurve1, mean_tencurve2, mean_tencurve3, mean_tencurve4, mean_tencurve5, sem_tencurve1, sem_tencurve2, sem_tencurve3, sem_tencurve4, sem_tencurve5),
-               names_to = c(".value","timepoint"), names_pattern = "(.*?)_(.*)")
-
-extinction_time_groups_descr_low$sex_stress <- as.factor(extinction_time_groups_descr_low$sex_stress)
-extinction_time_groups_descr_low$timepoint <- as.factor(extinction_time_groups_descr_low$timepoint)
-#count
-
-ten_minute_extinction_low_count <- ten_minute_extinction_low %>%
-  group_by(Sex, Stress, Condition) %>%
-  count()
-
-# add n's to figure
-# n loop
-low_count_10min = list()
-for (i in ten_minute_extinction_low_count$n)
-{
-  low_count_10min <- append(low_count_10min,i)
-}
-
-extinction_curve_figure_low <- ggplot(data = extinction_time_groups_descr_low, aes(x = timepoint, y = mean, group = sex_stress, color = sex_stress)) +
-  geom_line() +
-  geom_point() +
-  coord_cartesian(ylim = c(0, 100)) +
-  scale_y_continuous(breaks=seq(0,100,25), expand = c(0,0))+
-  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), width=.2, alpha = 0.7)
-
-extinction_curve_figure_low <- extinction_curve_figure_low + scale_x_discrete(labels = c("tencurve1" = "2 mins", "tencurve2"= "4 mins", "tencurve3" = "6 mins", "tencurve4" = "8 mins", "tencurve5" = "10 mins"))
-extinction_curve_figure_low <- extinction_curve_figure_low + scale_color_manual(labels = c("Male_ELS" = sprintf("Male ELS\n n = %s\n", low_count_10min[3]), "Male_NS" =  sprintf("Male NS\n n = %s\n", low_count_10min[4]), "Female_ELS" = sprintf("Female ELS\n n = %s\n", low_count_10min[1]), "Female_NS" =  sprintf("Female NS\n n = %s\n", low_count_10min[2])), values= orange_blue)
-extinction_curve_figure_low <- extinction_curve_figure_low + labs(title="Low intensity shock", x = NULL, y = NULL, group = "Group", color = "Group")
-extinction_curve_figure_low <- extinction_curve_figure_low + blank_figure_theme
-extinction_curve_figure_low <- extinction_curve_figure_low + theme(legend.position = c(0.8, 0.7))
-extinction_curve_figure_low
-
-ggsave("Extinction_lines_low.png", plot = extinction_curve_figure, path = "./Low/Figures/")
+extinction_figure_low <- extinction_figure(extinction_descriptives_low, intensity = "Low", count_dataset = low_count_extinction)
+extinction_figure_high <- extinction_figure(extinction_descriptives_high, intensity = "High", count_dataset = high_count_extinction)
 
 #Combined
-combined_10min_line <- ggarrange(extinction_curve_figure_low, extinction_curve_figure_high, ncol=2, nrow=1, labels = "auto", common.legend = FALSE)
-combined_10min_line <- combined_10min_line <- my_annotate_figure_function(figure = combined_10min_line, title_text = NULL)
-combined_10min_line <- annotate_figure(combined_10min_line, left = textGrob("Freezing percentage", rot = 90, vjust = 1,hjust= 0.3, gp = gpar(cex = 1.3)))
-combined_10min_line
-
-#inferentials
-
-# Check 2 minute group from LTM1 bars vs 10 minute group: first 2 minutes.
-fem_non_stress_2 <- two_min_group_only %>%
-  filter(Stress == "NS", Sex == "Female") %>%
-  select(Stress, Sex, Condition, recall_1)
-
-fem_non_stress10_2min <- ten_minute_extinction %>%
-  filter(Stress == "NS", Sex == "Female") %>%
-  select(Stress, Sex, Condition, ext1_curve) %>%
-  rename(recall_1 = ext1_curve)
+combined_extinction_figure <- ggarrange(extinction_figure_low, extinction_figure_high, ncol=2, nrow=1, labels = "auto", common.legend = FALSE)
+combined_extinction_figure <- combined_extinction_figure <- annotate_figure_function(figure = combined_extinction_figure, title_text = NULL)
+combined_extinction_figure <- annotate_figure(combined_extinction_figure, left = textGrob("Freezing percentage", rot = 90, vjust = 1,hjust= 0.3, gp = gpar(cex = 1.3)))
+combined_extinction_figure
 
 
 
-#Combine the datasets
-combined210_test <- bind_rows(fem_non_stress_2, fem_non_stress10_2min)
-t_result <- t.test(recall_1 ~ Condition, data = combined210_test)
-t_result
-#### Extinction recall HIGH ######################################################
+#### Extinction recall----------------------------------------------------------
 
-recall_1_high <- recall_1_high %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress, c(Sex, Stress), remove=FALSE) %>%
-  unite(sex_stress_condition, c(Sex, Stress, Condition), remove = FALSE)
-
-recall_1_indivpoints_high <- recall_1_high %>%
-  drop_na() %>%
-  unite(sex_stress_condition, c(Sex,Stress,Condition))
-
-recall_1_high$sex_stress <- as.factor(recall_1_high$sex_stress)
-recall_1_high$sex_stress_condition <- as.factor(recall_1_high$sex_stress_condition)
-recall_1_high$extinction_recall <- as.numeric(recall_1_high$extinction_recal)
-recall_1_indivpoints_high$extinction_recall <- as.numeric(recall_1_indivpoints_high$extinction_recal)
-recall_1_high$sex_stress <- factor(recall_1_high$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
-
-recall_1_descr_high <- recall_1_high %>%
-  group_by(sex_stress, Condition, Sex, Stress, figures_sex, sex_stress_condition) %>%
-  summarize(mean_extRecall = mean(extinction_recall, na.rm = TRUE), sem_extRecall = sd(extinction_recall, na.rm = TRUE)/sqrt(length(extinction_recall)))
-write.csv(recall_1_descr, file = "./High/Descriptives/recall_1_descr.csv")
-
-recall_1_high_count <- recall_1_high %>%
-  group_by(Sex,Stress,Condition) %>%
-  count()
-
-high_count_recall = list()
-for (i in recall_1_high_count$n)
-{
-  high_count_recall <- append(high_count_recall,i)
+prepare_extinction_recall_data <- function(data) {
+  data <- data %>%
+    mutate(figures_sex = fct_reorder(Sex, desc(Sex))) %>%
+    unite(sex_stress, c(Sex, Stress), remove = FALSE) %>%
+    unite(sex_stress_condition, c(Sex, Stress, Condition), remove = FALSE)
+  
 }
 
-#change levels to have non stressed first
-recall_1_high$sex_stress <- factor(recall_1_high$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
+low_extinction_recall_data <- prepare_extinction_recall_data(low_extinction_recall)
+high_extinction_recall_data <- prepare_extinction_recall_data(high_extinction_recall)
 
-chart_retval1_high <- ggplot(recall_1_high, aes(x = sex_stress, y = extinction_recall,  fill = Condition))
-
-chart_retval1_high <- chart_retval1_high +
-  geom_boxplot(outlier.shape = NA)+
-  scale_y_continuous(breaks=seq(0,100,10), expand = c(0.025,0))+
-  coord_cartesian(ylim = c(0, 100)) +
-  geom_point(aes(x = sex_stress, y = extinction_recall), position =
-               position_jitterdodge(jitter.width = 0.4, jitter.height=0.1,
-                                    dodge.width=0.9), alpha = 0.6, set.seed(42)) +
-  #scale_fill_manual(values = c('black','black'))+
-  facet_wrap(~figures_sex, strip.position = "bottom", scales = "free_x")+
-  stat_summary(aes(x = sex_stress, y = extinction_recall, group = Condition), fun = mean, geom = "point", shape = 21, size = 4, fill = "#FF00FF", color = "black", position = position_dodge(width = 0.9))
-
-# Count
-chart_retval1_high <- chart_retval1_high + scale_x_discrete(labels = c("Male_ELS" = sprintf("ELS\n n = %s        n = %s", high_count_recall[5],high_count_recall[6]), "Male_NS" = sprintf( "NS\n n = %s        n = %s", high_count_recall[7],high_count_recall[8]),"Female_ELS" = sprintf("ELS\n n = %s        n = %s", high_count_recall[1],high_count_recall[2]), "Female_NS"= sprintf( "NS\n n = %s        n = %s", high_count_recall[3],high_count_recall[4])))
-chart_retval1_high <- chart_retval1_high + scale_fill_manual(values = extinction_colors)
-chart_retval1_high <- chart_retval1_high + labs(title = "High intensity shock", x = NULL, y = NULL, fill = "Condition")
-chart_retval1_high <- chart_retval1_high + blank_figure_theme
+low_extinction_recall_count <- count_n(low_extinction_recall_data, type = "allfactors")
+high_extinction_recall_count <- count_n(high_extinction_recall_data, type = "allfactors")
 
 
-chart_retval1_high
-
-ggsave("Retrieval_bars.png", plot = bar_chart_retval1, path = "./High/Figures/")
-
-#Extinction recall LOW ###########################################################
-
-recall_1_low <- recall_1_low %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress, c(Sex, Stress), remove=FALSE) %>%
-  unite(sex_stress_condition, c(Sex, Stress, Condition), remove = FALSE)
-
-recall_1_indivpoints_low <- recall_1_low %>%
-  drop_na() %>%
-  unite(sex_stress_condition, c(Sex,Stress,Condition))
-
-recall_1_low$sex_stress <- as.factor(recall_1_low$sex_stress)
-recall_1_low$sex_stress_condition <- as.factor(recall_1_low$sex_stress_condition)
-recall_1_low$extinction_recall <- as.numeric(recall_1_low$extinction_recal)
-recall_1_indivpoints_low$extinction_recall <- as.numeric(recall_1_indivpoints_low$extinction_recal)
-recall_1_low$sex_stress <- factor(recall_1_low$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
-
-recall_1_descr_low <- recall_1_low %>%
-  group_by(sex_stress, Condition, Sex, Stress, figures_sex, sex_stress_condition) %>%
-  summarize(mean_extRecall = mean(extinction_recall, na.rm = TRUE), sem_extRecall = sd(extinction_recall, na.rm = TRUE)/sqrt(length(extinction_recall)))
-write.csv(recall_1_descr, file = "./Low/Descriptives/recall_1_descr.csv")
-
-recall_1_low_count <- recall_1_low %>%
-  group_by(Sex,Stress,Condition) %>%
-  count()
-
-low_count_recall = list()
-for (i in recall_1_low_count$n)
-{
-  low_count_recall <- append(low_count_recall,i)
+three_factor_barplot_figure <- function(dataset, intensity = "Low", timepoint = "Extinction_recall"){
+  extinction_recall_figure <- ggplot(dataset, aes(x = sex_stress, y = extinction_recall,  fill = Condition))
+  
+  extinction_recall_count <- count_n(dataset,type = "allfactors")
+  
+  # 2 min 
+  male_els_2 <- extinction_recall_count %>% filter(Sex == "Male", Stress == "ELS", Condition == "2") %>% pull(n)
+  male_ns_2 <- extinction_recall_count %>% filter(Sex == "Male", Stress == "NS", Condition == "2") %>% pull(n)
+  female_els_2 <- extinction_recall_count %>% filter(Sex == "Female", Stress == "ELS", Condition == "2") %>% pull(n)
+  female_ns_2 <- extinction_recall_count %>% filter(Sex == "Female", Stress == "NS", Condition == "2") %>% pull(n)
+  
+  # 10 min 
+  male_els_10 <- extinction_recall_count %>% filter(Sex == "Male", Stress == "ELS", Condition == "10") %>% pull(n)
+  male_ns_10 <- extinction_recall_count %>% filter(Sex == "Male", Stress == "NS", Condition == "10") %>% pull(n)
+  female_els_10 <- extinction_recall_count %>% filter(Sex == "Female", Stress == "ELS", Condition == "10") %>% pull(n)
+  female_ns_10 <- extinction_recall_count %>% filter(Sex == "Female", Stress == "NS", Condition == "10") %>% pull(n)
+  
+  
+  extinction_recall_figure <- extinction_recall_figure +
+    geom_boxplot(outlier.shape = NA)+
+    scale_y_continuous(breaks=seq(0,100,10), expand = c(0.025,0))+
+    coord_cartesian(ylim = c(0, 100)) +
+    geom_point(aes(x = sex_stress, y = extinction_recall), position =
+                 position_jitterdodge(jitter.width = 0.4, jitter.height=0.1,
+                                      dodge.width=0.9), alpha = 0.6, set.seed(42)) +
+    facet_wrap(~figures_sex, strip.position = "bottom", scales = "free_x")+
+    stat_summary(aes(x = sex_stress, y = extinction_recall, group = Condition), fun = mean, geom = "point", shape = 21, size = 4, fill = "#FF00FF", color = "black", position = position_dodge(width = 0.9))
+  
+  # Count
+  # Define each label with the correct format
+  extinction_recall_figure <- extinction_recall_figure + 
+    scale_x_discrete(
+      labels = c(
+        "Male_ELS" = sprintf("ELS\n n = %s        n = %s", male_els_2, male_els_10),
+        "Male_NS" = sprintf("NS\n n = %s        n = %s", male_ns_2, male_ns_10),
+        "Female_ELS" = sprintf("ELS\n n = %s        n = %s", female_els_2, female_els_10),
+        "Female_NS" = sprintf("NS\n n = %s        n = %s", female_ns_2, female_ns_10)
+      )
+    )
+  extinction_recall_figure <- extinction_recall_figure + scale_fill_manual(values = extinction_colors)
+  if (intensity == "Low"){
+    extinction_recall_figure <- extinction_recall_figure + labs(title = "Low intensity shock", x = NULL, y = NULL, fill = "Condition")
+ 
+  }
+  else if (intensity == "High"){
+    extinction_recall_figure <- extinction_recall_figure + labs(title = "High intensity shock", x = NULL, y = NULL, fill = "Condition")
+    
+  }
+    extinction_recall_figure <- extinction_recall_figure + blank_figure_theme
+  
+  
+  return (extinction_recall_figure)
 }
 
-#change levels to have non stressed first
-recall_1_low$sex_stress <- factor(recall_1_low$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
+extinction_recall_low_figure <- three_factor_barplot_figure(low_extinction_recall_data, intensity = "Low", timepoint = "Extinction_recall")
+extinction_recall_high_figure <- three_factor_barplot_figure(high_extinction_recall_data, intensity = "High", timepoint = "Extinction_recall")
 
-chart_retval1_low <- ggplot(recall_1_low, aes(x = sex_stress, y = extinction_recall,  fill = Condition))
 
-chart_retval1_low <- chart_retval1_low +
-  geom_boxplot()+
-  #geom_errorbar(stat = "summary", position = position_dodge(width = 0.9), width = 0.5) +
-  scale_y_continuous(breaks=seq(0,100,10), expand = c(0.025,0))+
-  coord_cartesian(ylim = c(0, 100)) +
-  geom_point(aes(x = sex_stress, y = extinction_recall), position =
-               position_jitterdodge(jitter.width = 0.4, jitter.height=0.1,
-                                    dodge.width=0.9), alpha = 0.6, set.seed(42)) +
-  #scale_fill_manual(values = c('black','black'))+
-  facet_wrap(~figures_sex, strip.position = "bottom", scales = "free_x")+
-  stat_summary(aes(x = sex_stress, y = extinction_recall, group = Condition), fun = mean, geom = "point", shape = 21, size = 4, fill = "#FF00FF", color = "black", position = position_dodge(width = 0.9))
-
-# Count
-chart_retval1_low <- chart_retval1_low + scale_x_discrete(labels = c("Male_ELS" = sprintf("ELS\n n = %s        n = %s", low_count_recall[5],low_count_recall[6]), "Male_NS" = sprintf( "NS\n n = %s        n = %s", low_count_recall[7],low_count_recall[8]),"Female_ELS" = sprintf("ELS\n n = %s        n = %s", low_count_recall[1],low_count_recall[2]), "Female_NS"= sprintf( "NS\n n = %s        n = %s", low_count_recall[3],low_count_recall[4])))
-chart_retval1_low <- chart_retval1_low + scale_fill_manual(values = extinction_colors)
-chart_retval1_low <- chart_retval1_low + labs(title = "Low intensity shock", x = NULL, y = NULL, fill = "Condition")
-chart_retval1_low <- chart_retval1_low + blank_figure_theme
-chart_retval1_low
-
-ggsave("Retrieval_bars.png", plot = bar_chart_retval1, path = "./Low/Figures/")
-
-combined_extinction_recall <- ggarrange(chart_retval1_low, chart_retval1_high, ncol=2, nrow=1, labels = "auto", common.legend = TRUE,legend = "bottom")
-combined_extinction_recall <- combined_extinction_recall <- my_annotate_figure_function(figure = combined_extinction_recall, title_text = NULL)
+combined_extinction_recall <- ggarrange(extinction_recall_low_figure, extinction_recall_high_figure, ncol=2, nrow=1, labels = "auto", common.legend = TRUE,legend = "bottom")
+combined_extinction_recall <- combined_extinction_recall <- annotate_figure_function(figure = combined_extinction_recall, title_text = NULL)
 combined_extinction_recall <- annotate_figure(combined_extinction_recall, left = textGrob(y_title, rot = 90, vjust = 1,hjust= 0.3, gp = gpar(cex = 1.3)))
 combined_extinction_recall
 
-
 ggsave("Extinction_recall_chart.png", plot = combined_extinction_recall, path = "./combined")
-#Reminder with shock HIGH ######################################################
+
+
+#### Reminder Shock-------------------------------------------------------------
+# As this figure will be very similar to the extinction recall figuire I think I will adjust that function and have an argument to change the title,
+# The dataset will be different but the presentation will be exactly the same for Extinction recall, reminder shock and reminder recall
 reminder_shock_figure <- function(database){
   #' here database is either reminder_shock_low or reminder_shock_high
   #' 
@@ -850,23 +785,19 @@ reminder_shock_figure <- function(database){
   bar_chart_reminder_shock <- bar_chart_reminder_shock + blank_figure_theme + labs(y=NULL)
   return(bar_chart_reminder_shock)
 }
-low_reminder_shock_figure <- reminder_shock_figure(reminder_shock_low)
-high_reminder_shock_figure <- reminder_shock_figure(reminder_shock_high)
+low_reminder_shock_figure <- reminder_shock_figure(low_reminder_shock)
+high_reminder_shock_figure <- reminder_shock_figure(high_reminder_shock)
 low_reminder_shock_figure
 high_reminder_shock_figure
 ggsave("reminder_shock_high.png", plot = bar_chart_reminder_shock_high, path = "./High/Figures/")
 
-
-#Reminder with shock LOW #######################################################
-
-
 combined_reminder_shock <- ggarrange(low_reminder_shock_figure, high_reminder_shock_figure, ncol=2, nrow=1, labels = "auto", common.legend = TRUE,legend = "bottom")
-combined_reminder_shock <- combined_reminder_shock <- my_annotate_figure_function(figure = combined_reminder_shock, title_text = NULL)
+combined_reminder_shock <- combined_reminder_shock <- annotate_figure_function(figure = combined_reminder_shock, title_text = NULL)
 combined_reminder_shock <- annotate_figure(combined_reminder_shock, left = textGrob("Freezing percentage", rot = 90, vjust = 1,hjust= 0.3, gp = gpar(cex = 1.3)))
 combined_reminder_shock
 
 
-#Reminder recall HIGH ##########################################################
+#Reminder recall ##########################################################
 descriptives_function <- function(dataset){
   reminder_recall_descr <- dataset %>%
     mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
@@ -936,284 +867,11 @@ low_reminder_recall_figure <- combined_reminder_recall_function(reminder_recall_
 high_reminder_recall_figure <- combined_reminder_recall_function(reminder_recall_high, shock_intensity = high_string)
 
 combined_reminder_recall <- ggarrange(low_reminder_recall_figure, high_reminder_recall_figure, ncol=2, nrow=1, common.legend = TRUE,legend = "bottom")
-combined_reminder_recall <- combined_reminder_recall <- my_annotate_figure_function(figure = combined_reminder_recall, title_text = NULL)
+combined_reminder_recall <- combined_reminder_recall <- annotate_figure_function(figure = combined_reminder_recall, title_text = NULL)
 combined_reminder_recall <- annotate_figure(combined_reminder_recall, left = textGrob("Freezing percentage", rot = 90, vjust = 1,hjust= 0.3, gp = gpar(cex = 1.3)))
 combined_reminder_recall
 
-
-#### Low intensity shock ----------------------------------------------------------------
-#filter for low
-low_freezing_prepost_descriptives <- freezing_acquisition_low %>%
-  group_by(Sex, Stress)%>%
-  summarize(mean_freezing_pre = mean(Pre, na.rm = T), sem_freezing_pre = sd(Pre, na.rm = T)/sqrt(length(Pre)), mean_freezing_post = mean(Post, na.rm = T), sem_freezing_post = sd(Post, na.rm = T)/sqrt(length(Post)))
-write.csv(low_freezing_prepost_descriptives, file = "./Low/Descriptives/freezing_prepost_descriptives.csv")
-
-#LOW prePost ####################
-
-# low 2 minute recall plots and data
-
-two_minute_descriptives_low <- two_minute_extinction_low %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  group_by(figures_sex, Stress)%>%
-  summarize(mean_recall = mean(recall_1, na.rm = T), sem_recall = sd(recall_1, na.rm = T)/sqrt(length(recall_1)))
-write.csv(two_minute_descriptives_low, file = "./Low/Descriptives/two_minute_descriptives.csv")
-
-two_minute_indivpoints_low <- two_minute_extinction_low %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress, c(Sex,Stress))
-two_minute_indivpoints_low$sex_stress <- factor(two_minute_indivpoints_low$sex_stress,levels = c("Male_ELS", "Male_NS", "Female_ELS", "Female_NS"))
-
-recall_results_low <- two_minute_descriptives_low %>%
-  unite(sex_stress, c(figures_sex, Stress), remove = FALSE)
-recall_results_low$sex_stress <- factor(recall_results_low$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS","Female_ELS"))
-
-#LOW LTM1 bar #####
-
-bar_chart_recall1_low <- ggplot(two_minute_indivpoints_low, aes(x = sex_stress, y = recall_1,  fill = sex_stress))
-
-
-bar_chart_recall1_low <- bar_chart_recall1_low + geom_bar(position = 'dodge', stat = 'summary', fun.y = 'mean')+
-  facet_wrap(~figures_sex, strip.position = "bottom", scales = "free_x")+
-  coord_cartesian(ylim = c(0, 110)) +
-  scale_y_continuous(breaks=seq(0,110,5), expand = c(0,0))+
-  geom_point(aes(x = sex_stress, y = recall_1), position =
-               position_jitterdodge(jitter.width = 0.9, jitter.height=0.3,
-                                    dodge.width=0.9), alpha = 0.6) +
-  geom_errorbar(stat = 'summary', position = position_dodge(width = 0.9), width = 0.5)
-
-
-
-# bar_chart_recall_1 <- ggplot(recall_results, aes(x= sex_stress, y = mean_recall, fill = sex_stress))+
-#   geom_bar(position = "dodge", stat = "identity") +
-#   geom_point(data = two_minute_indivpoints, aes(x = sex_stress, y = recall_1), position = position_jitter(.1))+
-#   #geom_violin(data = two_minute_indivpoints, aes(x = sex_stress, y = recall_1, alpha = 0.6))+
-#   scale_y_continuous(breaks=seq(0,100,5), expand = c(0,0))+
-#   coord_cartesian(ylim = c(0, 100)) +
-#   geom_errorbar(aes(ymin=mean_recall-sem_recall, ymax=mean_recall+sem_recall), width=.2,
-#                 position=position_dodge(.9))
-
-
-#to add significance markers
-#geom_signif(comparisons = list(c("Male_ELS", "Male_NS")), annotations = "******", y_position = 65)+
-#geom_signif(comparisons = list(c("Female_ELS", "Female_NS")) , annotations = "NS", y_position = 65) +
-#geom_signif(comparisons = list(c("Male_NS" , "Female_ELS")), annotations = "Blah",  y_position = 55 )
-
-
-
-
-bar_chart_recall1_low <- bar_chart_recall1_low + scale_x_discrete(labels = x_labels)
-bar_chart_recall1_low <- bar_chart_recall1_low + scale_fill_manual(labels = key_label,values = orange_blue_bar)
-bar_chart_recall1_low <- bar_chart_recall1_low + labs(title="Low intensity shock", x = NULL, y = y_title, fill = "Sex and stress type")
-bar_chart_recall1_low <- bar_chart_recall1_low + blank_figure_theme
-bar_chart_recall1_low
-ggsave("Recall_low.png", plot = bar_chart_recall1_low, path = "./Low/Figures/")
-
-
-#LOW LTM1 10 minutes ####
-
-extinction_time_groups_descr_low <- ten_minute_extinction_low %>%
-  unite(sex_stress, c(Sex, Stress), remove=TRUE)%>%
-  group_by(sex_stress) %>%
-  summarise(mean_tencurve1 = mean(ext1_curve), mean_tencurve2 = mean(ext2_curve), mean_tencurve3 = mean(ext3_curve), mean_tencurve4 = mean(ext4_curve), mean_tencurve5 = mean(ext5_curve),
-            sem_tencurve1 = sd(ext1_curve)/sqrt(length(ext1_curve)), sem_tencurve2 = sd(ext2_curve)/sqrt(length(ext2_curve)),sem_tencurve3 = sd(ext3_curve)/sqrt(length(ext3_curve)),sem_tencurve4 = sd(ext4_curve)/sqrt(length(ext4_curve)), sem_tencurve5 = sd(ext1_curve)/sqrt(length(ext1_curve)))
-write.csv(extinction_time_groups_descr_low, file = "./Low/Descriptives/10_minute_descriptives.csv")
-
-extinction_time_groups_descr_low <- ten_minute_extinction_low %>%
-  unite(sex_stress, c(Sex, Stress), remove=TRUE)%>%
-  group_by(sex_stress) %>%
-  summarise(mean_tencurve1 = mean(ext1_curve), mean_tencurve2 = mean(ext2_curve), mean_tencurve3 = mean(ext3_curve), mean_tencurve4 = mean(ext4_curve), mean_tencurve5 = mean(ext5_curve),
-            sem_tencurve1 = sd(ext1_curve)/sqrt(length(ext1_curve)), sem_tencurve2 = sd(ext2_curve)/sqrt(length(ext2_curve)),sem_tencurve3 = sd(ext3_curve)/sqrt(length(ext3_curve)),sem_tencurve4 = sd(ext4_curve)/sqrt(length(ext4_curve)), sem_tencurve5 = sd(ext1_curve)/sqrt(length(ext1_curve))) %>%
-  pivot_longer(cols = c(mean_tencurve1, mean_tencurve2, mean_tencurve3, mean_tencurve4, mean_tencurve5, sem_tencurve1, sem_tencurve2, sem_tencurve3, sem_tencurve4, sem_tencurve5),
-               names_to = c(".value","timepoint"), names_pattern = "(.*?)_(.*)")
-#pivot_longer(cols = starts_with("mean"), names_to = ("timepoint"), values_to = ("freezing"))
-
-
-extinction_time_groups_descr_low$sex_stress <- as.factor(extinction_time_groups_descr_low$sex_stress)
-extinction_time_groups_descr_low$timepoint <- as.factor(extinction_time_groups_descr_low$timepoint)
-
-extinction_curve_figure_low <- ggplot(data = extinction_time_groups_descr_low, aes(x = timepoint, y = mean, group = sex_stress, color = sex_stress)) +
-  geom_line() +
-  geom_point() +
-  coord_cartesian(ylim = c(0, 100)) +
-  scale_y_continuous(breaks=seq(0,100,10), expand = c(0,0))+
-  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), width=.2, alpha = 0.7)
-
-extinction_curve_figure_low <- extinction_curve_figure_low + scale_x_discrete(labels = c("tencurve1" = "2 minutes", "tencurve2"= "4 minutes", "tencurve3" = "6 minutes", "tencurve4" = "8 minutes", "tencurve5" = "10 minutes"))
-
-extinction_curve_figure_low <- extinction_curve_figure_low + scale_color_manual(labels = c("F_ELS" = "Female ELS", "F_NS" = "Female non-stressed", "M_ELS" = "Male ELS", "M_NS" = "Male Non-stressed"),values=c("#ff870f", "#ffc182", "#1c20fc", "#b3b4ff"))
-
-extinction_curve_figure_low <- extinction_curve_figure_low + labs(title="Low intensity shock", x = "Timepoint", y = y_title, group = "Group", color = "Group")
-
-extinction_curve_figure_low <- extinction_curve_figure_low + blank_figure_theme
-
-extinction_curve_figure_low
-
-ggsave("Extinction_lines_low.png", plot = extinction_curve_figure_low, path = "./Low/Figures/")
-
-
-#LOW LTM2 Retrieval----
-
-recall_1_descr_low <- recall_1_low %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress, c(Sex, Stress), remove=FALSE) %>%
-  unite(sex_stress_condition, c(Sex, Stress, Condition), remove = FALSE)
-
-recall_1_indivpoints_low <- recall_1_low %>%
-  drop_na() %>%
-  unite(sex_stress_condition, c(Sex,Stress,Condition))
-
-recall_1_descr_low$sex_stress <- as.factor(recall_1_descr_low$sex_stress)
-recall_1_descr_low$sex_stress_condition <- as.factor(recall_1_descr_low$sex_stress_condition)
-recall_1_descr_low$extinction_recall <- as.numeric(recall_1_descr_low$extinction_recal)
-recall_1_indivpoints$extinction_recall <- as.numeric(recall_1_indivpoints$extinction_recal)
-recall_1_descr_low$sex_stress <- factor(recall_1_descr_low$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
-
-recall_1_descr_low <- recall_1_descr_low %>%
-  group_by(sex_stress, Condition, Sex, Stress, figures_sex, sex_stress_condition) %>%
-  summarize(mean_extRecall = mean(extinction_recall, na.rm = TRUE), sem_extRecall = sd(extinction_recall, na.rm = TRUE)/sqrt(length(extinction_recall)))
-write.csv(recall_1_descr_low, file = "./Low/Descriptives/recall_1_descr_low.csv")
-
-#ggplot indiv points
-recall_1_u_low <- recall_1_low %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress, c(Sex, Stress), remove=FALSE)
-
-recall_1_u_low$sex_stress <- factor(recall_1_u_low$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS", "Female_ELS"))
-
-bar_chart_retval1_low <- ggplot(recall_1_u_low, aes(x = sex_stress, y = extinction_recall,  fill = Condition))
-
-bar_chart_retval1_low <- bar_chart_retval1_low + geom_bar(position = 'dodge', stat = 'summary', fun.y = 'mean')+
-  geom_errorbar(stat = 'summary', position = position_dodge(width = 0.9), width = 0.5) +
-  scale_y_continuous(breaks=seq(0,100,10), expand = c(0.025,0))+
-  coord_cartesian(ylim = c(0, 100)) +
-  geom_point(aes(x = sex_stress, y = extinction_recall), position =
-               position_jitterdodge(jitter.width = 0.4, jitter.height=0.1,
-                                    dodge.width=0.9), alpha = 0.6) +
-  #scale_fill_manual(values = c('black','black'))+
-  facet_wrap(~figures_sex, strip.position = "bottom", scales = "free_x")
-
-bar_chart_retval1_low <- bar_chart_retval1_low + scale_x_discrete(labels = x_labels)
-
-bar_chart_retval1_low <- bar_chart_retval1_low + labs(title="Low intensity shock", x = NULL, y = y_title, fill = "Condition")
-
-bar_chart_retval1_low <- bar_chart_retval1_low + scale_fill_manual(values = extinction_colors)
-
-bar_chart_retval1_low <- bar_chart_retval1_low + blank_figure_theme
-bar_chart_retval1_low
-
-ggsave("Retrieval_bars_low.png", plot = bar_chart_retval1_low, path = "./Low/Figures/")
-
-#LOW LTM3 Reminder with shock -----
-
-reminder_shock_descr_low <- reminder_shock_low %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress, c(Sex, Stress), remove=FALSE) %>%
-  unite(sex_stress_condition, c(Sex, Stress, Condition), remove = FALSE)
-
-reminder_shock_indivpoints_low <- reminder_shock_low %>%
-  drop_na() %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress_condition, c(Sex,Stress,Condition), remove = FALSE) %>%
-  unite(sex_stress, c(Sex, Stress), remove = FALSE)
-
-reminder_shock_descr_low$sex_stress <- as.factor(reminder_shock_descr_low$sex_stress)
-reminder_shock_descr_low$reminder_day1_shock <- as.numeric(reminder_shock_descr_low$reminder_day1_shock)
-reminder_shock_indivpoints$reminder_day1_shock <- as.numeric(reminder_shock_indivpoints$reminder_day1_shock)
-reminder_shock_descr_low$sex_stress <- factor(reminder_shock_descr_low$sex_stress,levels = c("Male_ELS", "Male_NS", "Female_ELS", "Female_NS"))
-
-reminder_shock_descr_low <- reminder_shock_descr_low %>%
-  group_by(sex_stress, Condition, Sex, Stress, figures_sex, sex_stress_condition) %>%
-  summarize(mean_reminder_shock = mean(reminder_day1_shock, na.rm = TRUE), sem_reminder_shock = sd(reminder_day1_shock, na.rm = TRUE)/sqrt(length(reminder_day1_shock)))
-write.csv(reminder_shock_descr_low, file = "./Low/Descriptives/reminder_shock_descr_low.csv")
-
-reminder_shock_low_nona_count <- reminder_shock_low_nona %>%
-  group_by(Sex,Stress,Condition) %>%
-  count()
-
-#Figure
-
-bar_chart_reminder_shock_low <- ggplot(reminder_shock_indivpoints_low, aes(x = sex_stress, y = reminder_day1_shock,  fill = Condition))
-
-bar_chart_reminder_shock_low <- bar_chart_reminder_shock_low + geom_bar(position = 'dodge', stat = 'summary', fun.y = 'mean')+
-  geom_errorbar(stat = 'summary', position = position_dodge(width = 0.9), width = 0.5) +
-  scale_y_continuous(breaks=seq(0,100,10), expand = c(0.025,0))+
-  coord_cartesian(ylim = c(0, 100)) +
-  geom_point(aes(x = sex_stress, y = reminder_day1_shock), position =
-               position_jitterdodge(jitter.width = 0.4, jitter.height=0.1,
-                                    dodge.width=0.9), alpha = 0.6) +
-  #scale_fill_manual(values = c('black','black'))+
-  facet_wrap(~figures_sex, strip.position = "bottom", scales = "free_x")
-
-
-bar_chart_reminder_shock_low <- bar_chart_reminder_shock_low + scale_x_discrete(labels = x_labels)
-
-bar_chart_reminder_shock_low <- bar_chart_reminder_shock_low + scale_fill_manual(values = extinction_colors)
-
-bar_chart_reminder_shock_low <- bar_chart_reminder_shock_low + labs(title="Low intensity shock", x = NULL, y = y_title, fill = "Condition")
-bar_chart_reminder_shock_low <- bar_chart_reminder_shock_low + blank_figure_theme
-bar_chart_reminder_shock_low
-
-ggsave("Reminder_shock_low.png", plot = bar_chart_reminder_shock_low, path = "./Low/Figures/")
-
-#LTM4 Reminder recall ------
-reminder_recall_descr_low <- reminder_recall_low %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress, c(Sex, Stress), remove=FALSE) %>%
-  unite(sex_stress_condition, c(Sex, Stress, Condition), remove = FALSE)
-
-reminder_recall_indivpoints_low <- reminder_recall_low %>%
-  drop_na() %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress_condition, c(Sex,Stress,Condition), remove = FALSE) %>%
-  unite(sex_stress, c(Sex, Stress), remove = FALSE)
-
-reminder_recall_descr_low$sex_stress <- as.factor(reminder_recall_descr_low$sex_stress)
-reminder_recall_descr_low$sex_stress <- factor(reminder_recall_descr_low$sex_stress,levels = c("Male_ELS", "Male_NS", "Female_ELS", "Female_NS"))
-
-reminder_recall_descr_low <- reminder_recall_descr_low %>%
-  group_by(sex_stress, Condition, Sex, Stress, figures_sex, sex_stress_condition) %>%
-  summarize(mean_reminder_recall = mean(reminder_day2, na.rm = TRUE), sem_reminder_recall = sd(reminder_day2, na.rm = TRUE)/sqrt(length(reminder_day2)))
-write.csv(reminder_recall_descr_low, file = "./Low/Descriptives/reminder_recall_descr_low.csv")
-
-#Figure
-
-bar_chart_reminder_recall_low <- ggplot(reminder_recall_indivpoints_low, aes(x = sex_stress, y = reminder_day2,  fill = Condition))
-
-bar_chart_reminder_recall_low <- bar_chart_reminder_recall_low + geom_bar(position = 'dodge', stat = 'summary', fun.y = 'mean')+
-  geom_errorbar(stat = 'summary', position = position_dodge(width = 0.9), width = 0.5) +
-  scale_y_continuous(breaks=seq(0,100,10), expand = c(0.025,0))+
-  coord_cartesian(ylim = c(0, 100)) +
-  geom_point(aes(x = sex_stress, y = reminder_day2), position =
-               position_jitterdodge(jitter.width = 0.4, jitter.height=0.1,
-                                    dodge.width=0.9), alpha = 0.6) +
-  #scale_fill_manual(values = c('black','black'))+
-  facet_wrap(~figures_sex, strip.position = "bottom", scales = "free_x")
-
-
-bar_chart_reminder_recall_low <- bar_chart_reminder_recall_low + scale_x_discrete(labels = x_labels)
-
-bar_chart_reminder_recall_low <- bar_chart_reminder_recall_low + scale_fill_manual(values = extinction_colors)
-
-bar_chart_reminder_recall_low <- bar_chart_reminder_recall_low + labs(title = "Low intensity shock", x = NULL, y = y_title, fill = "Condition")
-bar_chart_reminder_recall_low <- bar_chart_reminder_recall_low + blank_figure_theme
-bar_chart_reminder_recall_low
-
-
-
-
-ggsave("bar_chart_reminder_recall_low.png", plot =bar_chart_reminder_recall_low, path = "./Low/Figures/")
-# combined figure
-
-
-reminder_combined_figure_low <- ggarrange(bar_chart_retval1_low + rremove("legend") , bar_chart_reminder_shock_low + rremove("ylab") + rremove("legend"), bar_chart_reminder_recall_low + rremove("ylab"),
-          labels = c("Extinction recall", "Reminder Shock", "Reminder recall"),
-          ncol = 3, nrow = 1)
-
-ggsave("Combined_reminder_figure_low.png", plot =reminder_combined_figure_low, path = "./Low/Figures/", width = 5050, height = 1000, unit = "px")
-
-
-
-#### 2 and 10 minute split -----------------------------------------------------
+#### Recall and extinction split -----------------------------------------------
 # try spliting the High intensity shock dataset into 2 across the 2 minute and 10 minute group
 complete_ds_2 <- complete_ds %>%
   filter(Condition == "2")
@@ -1356,8 +1014,10 @@ longplot10
 
 plot_grid(longplot2, longplot10full, labels = "AUTO", rel_widths = c(1,1))
 
-# Probably already have a lot of what Kerrie suggests for a figure here. 
-###### NEW KERRIE SUGGESTED FIGURES ####################################
+#### Kerries suggested figures -------------------------------------------------
+# After discussion with my supervisor Kerrie Thomas 25/08/23, it was agreed to present longitudinal figures. 
+# Functions below are to generate these figures. 
+
 
 #two_minute_combined_descriptives <- read.csv("./Datasets/twoMinuteCombinedDescriptives.csv")
 long_figure_function <- function(dataset, isLabeled = TRUE){
@@ -1513,7 +1173,7 @@ generate_two_ten_grid_figure <- function(wide_dataset){
   ten_plot <- figure_build_extctionrecall_reminder_remrecall_figure_function(ten_dataset)
   
   combined_plot <- ggarrange(two_plot, ten_plot, ncol=2, nrow=1, labels = "auto", common.legend = FALSE,legend = "bottom")
-  #combined_reminder_shock <- combined_reminder_shock <- my_annotate_figure_function(figure = combined_reminder_shock, title_text = NULL)
+  #combined_reminder_shock <- combined_reminder_shock <- annotate_figure_function(figure = combined_reminder_shock, title_text = NULL)
   combined_plot <- annotate_figure(combined_plot, left = textGrob("Freezing percentage", rot = 90, vjust = 0.5,hjust= 0.3, gp = gpar(cex = 1.3)))
   return(combined_plot)
   }
