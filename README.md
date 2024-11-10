@@ -6,7 +6,7 @@ This repository contains statistical analysis and associated data on freezing be
 ## Features and Analyses
 - **Data Preprocessing**: Cleaning and structuring raw behavioural freezing count data for analysis.
 - **Exploratory Data Analysis (EDA)**: Visualizations and initial insights to understand the distribution and characteristics of the data.
-- **Statistical Models**: Application of ANOVAs and linear models to test hypotheses about freezing behavior.
+- **Statistical Models (inferential analysis)**: Application of ANOVAs and linear models to test hypotheses about freezing behavior.
 - **Data Visualization**: Line charts, bar plots, and error bars to illustrate findings.
 
 ## Repository Structure
