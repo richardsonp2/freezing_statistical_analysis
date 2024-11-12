@@ -9,17 +9,181 @@ library(ggpubr)
 library(rstatix)
 library(emmeans)
 library(lmerTest)
-# Get the n's involved for the whole thing 
 
-#### n's LOW-------------- 
-complete_ds_low_forNs <- complete_ds_low %>% 
-  group_by(Sex, Stress, condition) %>% 
-  count()
 
-# n's HIGH----------------
-complete_ds_high_forNs <- complete_ds_high %>% 
-  group_by(Sex, Stress, Condition) %>% 
-  count()
+# Begin by loading the dataset 
+file_path <- "./Datasets/high_low_combined.csv"
+
+# I will use these throughout the script to select by different columns
+factor_cols <- c("Shock", "Stress", "Sex", "Condition")
+num_cols <- c("Pre", "Post", "recall_1", "ext1_curve", "ext2_curve", 
+              "ext3_curve", "ext4_curve", "ext5_curve", 
+              "extinction_recall", "reminder_day1_shock", "reminder_day2")
+
+
+# Function to read and clean the dataset
+clean_dataset <- function(file_path) {
+  ds <- read.csv(file_path, na.strings = c(".", "#DIV/0!"))
+  ds[ds == "#DIV/0!"] <- NA
+  
+  # Fix space issue in the 'Stress' variable
+  ds$Stress[ds$Stress == " NS"] <- "NS"
+  
+  # Remove entries with 'x' in 'Sex'
+  ds <- ds %>%
+    filter(Sex != "x")
+  
+  return(ds)
+}
+
+# Function to convert columns to appropriate data types
+convert_columns <- function(ds) {
+  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
+  num_cols <- c("Pre", "Post", "recall_1", "ext1_curve", "ext2_curve", 
+                "ext3_curve", "ext4_curve", "ext5_curve", 
+                "extinction_recall", "reminder_day1_shock", "reminder_day2")
+  
+  ds[factor_cols] <- lapply(ds[factor_cols], function(x) as.factor(x))
+  ds[num_cols] <- lapply(ds[num_cols], as.numeric)
+  
+  return(ds)
+}
+# Function to clean empty strings in factor columns
+clean_factors <- function(ds) {
+  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
+  
+  for (col in factor_cols) {
+    ds[[col]][ds[[col]] == ""] <- NA
+    ds[[col]] <- droplevels(ds[[col]])
+  }
+  
+  # Reverse the factor levels for 'Condition'
+  ds$Condition <- fct_rev(ds$Condition)
+  
+  
+  
+  return(ds)
+}
+
+# Pre-processing script execution
+
+complete_ds <- clean_dataset(file_path)
+complete_ds <- convert_columns(complete_ds)
+complete_ds <- clean_factors(complete_ds)
+str(complete_ds)
+
+# I have inputted Male, M, Female and F for sex accidentally during the freezing analysis
+# Fix that here, bit of a complex workaround but I was having issues with dplyr 
+complete_ds$Sex <- as.character(complete_ds$Sex)
+complete_ds$Sex[complete_ds$Sex == "M"] <- "Male"
+complete_ds$Sex[complete_ds$Sex == "F"] <- "Female"
+
+# Optionally, can convert it back to a factor if needed:
+complete_ds$Sex <- as.factor(complete_ds$Sex)
+# Display the structure of the cleaned dataset
+str(complete_ds)
+
+#' Subset for shock intensity 
+#'
+#' @param dataset A data frame containing the data to be subset.
+#' @param intensity A character string specifying the shock intensity. Valid options are:
+#'   * "Low" - Low shock intensity 0.5mA
+#'   * "High" - High shock intensity 0.7mA
+#' @return The subsetted shock intensity data frame. 
+#' @export
+subset_by_shock_intensity <- function(dataset, intensity){
+  
+  if (intensity == "Low"){
+    subset <- dataset %>% 
+      filter (Shock == "l")
+  }
+  else if (intensity =="High"){
+    subset <- dataset %>% 
+      filter (Shock == "h")
+  }
+  return (subset)
+}
+
+complete_ds_low <- subset_by_shock_intensity(complete_ds, "Low")
+complete_ds_high <- subset_by_shock_intensity(complete_ds, "High")
+
+#' Generate a subset of the dataset for a specified timepoint
+#'
+#' This function creates a subset of the input dataset, selecting relevant columns based on the specified timepoint.
+#' The function includes timepoint-specific columns and retains the specified factor columns across all timepoints.
+#'
+#' @param dataset A data frame containing the dataset to be subset.
+#' @param timepoint A character string specifying the timepoint for subsetting the dataset. 
+#'   Valid options are:
+#'   * "acquisition" - selects columns "Pre", "Post", and the factor columns.
+#'   * "recall_combined" - selects "recall_1" and the factor columns.
+#'   * "recall_2only" - selects "recall_1" and the factor columns, filtering rows with Condition == 2.
+#'   * "extinction" - selects extinction-related columns and the factor columns.
+#'   * "extinction_recall" - selects "extinction_recall" and the factor columns.
+#'   * "reminder_shock" - selects "reminder_day1_shock" and the factor columns.
+#'   * "reminder_recall" - selects "reminder_day2" and the factor columns.
+#' @return A data frame subset according to the specified timepoint, including the relevant columns.
+#' @details The factor columns retained for each timepoint include "Shock", "Stress", "Sex", and "Condition".
+#'   For the "extinction" timepoint, additional columns representing extinction curves are also included.
+#' @examples
+#' # Subset dataset for acquisition timepoint
+#' acquisition_subset <- select_dataset_timepoint(my_data, "acquisition")
+#' 
+#' # Subset dataset for recall_combined timepoint
+#' recall_combined_subset <- select_dataset_timepoint(my_data, "recall_combined")
+#' 
+#' # Subset dataset for recall_2only timepoint, with Condition == 2
+#' recall_2only_subset <- select_dataset_timepoint(my_data, "recall_2only")
+#' @export
+select_dataset_timepoint <- function(dataset, timepoint) {
+  valid_choices <- c("acquisition", "recall_combined", "recall_2only", "extinction", "extinction_recall", "reminder_shock", "reminder_recall")
+  
+  # Check if the timepoint is one of the valid choices
+  if (!(timepoint %in% valid_choices)) {
+    # Raise an exception with a custom error message
+    stop(sprintf("Invalid input: '%s'. Valid options are: %s", 
+                 timepoint, paste(valid_choices, collapse = ", ")))
+  }
+  
+  # Factor columns will be retained no matter which timepoint is selected
+  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
+  extinction_cols <- c("ext1_curve", "ext2_curve", "ext3_curve", "ext4_curve", "ext5_curve")
+  
+  subset_dataset <- switch(
+    timepoint,
+    "acquisition" = dataset %>% select(Pre, Post, all_of(factor_cols)),
+    "recall_combined" = dataset %>% select(recall_1, all_of(factor_cols)),
+    "recall_2only" = dataset %>% select(recall_1, all_of(factor_cols)) %>% filter(Condition == 2),
+    "extinction" = dataset %>% select(all_of(extinction_cols), all_of(factor_cols)),
+    "extinction_recall" = dataset %>% select(extinction_recall, all_of(factor_cols)),
+    "reminder_shock" = dataset %>% select(reminder_day1_shock, all_of(factor_cols)),
+    "reminder_recall" = dataset %>% select(reminder_day2, all_of(factor_cols))
+  )
+  
+  # Return the subset dataset
+  return(subset_dataset)
+}
+
+# Generate datasets for use below in generating figures and statistics
+
+# For "low" category datasets
+low_acquisition <- select_dataset_timepoint(complete_ds_low, "acquisition")
+low_recall_combined <- select_dataset_timepoint(complete_ds_low, "recall_combined")
+low_recall_2only <- select_dataset_timepoint(complete_ds_low, "recall_2only")
+low_extinction <- select_dataset_timepoint(complete_ds_low, "extinction")
+low_extinction_recall <- select_dataset_timepoint(complete_ds_low, "extinction_recall")
+low_reminder_shock <- select_dataset_timepoint(complete_ds_low, "reminder_shock")
+low_reminder_recall <- select_dataset_timepoint(complete_ds_low, "reminder_recall")
+
+# For "high" category datasets
+high_acquisition <- select_dataset_timepoint(complete_ds_high, "acquisition")
+high_recall_combined <- select_dataset_timepoint(complete_ds_high, "recall_combined")
+high_recall_2only <- select_dataset_timepoint(complete_ds_high, "recall_2only")
+high_extinction <- select_dataset_timepoint(complete_ds_high, "extinction")
+high_extinction_recall <- select_dataset_timepoint(complete_ds_high, "extinction_recall")
+high_reminder_shock <- select_dataset_timepoint(complete_ds_high, "reminder_shock")
+high_reminder_recall <- select_dataset_timepoint(complete_ds_high, "reminder_recall")
+
 
 #### Inferential analysis
 
@@ -52,20 +216,27 @@ collect_pre_post <- function(dataset) {
   return(freezing_acquisition)
 }
 
-freezing_acquisition_low_long <- collect_pre_post(freezing_acquisition_low)
-freezing_acquisition_high_long <- collect_pre_post(freezing_acquisition_high)
+freezing_acquisition_low_long <- collect_pre_post(low_acquisition)
+freezing_acquisition_high_long <- collect_pre_post(high_acquisition)
 
 
-
-# This is not producing the same results as befopre
+# Pre and post are repeated measures -> will run a repeated measures linear model here.
 pre_post_rm_lme4 <- function(dataset) {
-  # Assuming 'Subject' is your subject identifier in the dataset
+  # Subject here is the animal ID assigned when pivot longer 
   # Fit the mixed-effects model
   rm_lme4_model <- lmer(Percentage_freezing ~ Pre_Post * Sex * Stress + (1|Subject), data = dataset)
   summary(rm_lme4_model)
   
+  #plot(reside(rm_lme4_model))
+  plot(rm_lme4_model)
   return(rm_lme4_model)
 }
+
+rm_lme4_model <- lmer(Percentage_freezing ~ Pre_Post * Sex * Stress + (1|Subject), data = freezing_acquisition_low_long)
+plot(rm_lme4_model)
+qqnorm(resid(rm_lme4_model))
+qqline(resid(rm_lme4_model))
+hist(resid(rm_lme4_model))
 
 # Apply the function 
 rm_lme4_model_low <- pre_post_rm_lme4(freezing_acquisition_low_long)
@@ -73,29 +244,20 @@ summary(rm_lme4_model_low)
 rm_lme4_model_high <- pre_post_rm_lme4(freezing_acquisition_high_long)
 summary(rm_lme4_model_high)
 
-# Should I be using ANOVA or lm here? 
 
-#pre_post_statistics <- function(dataset){
-#  prepost_analysis <- lm(Post - Pre ~ Sex * Stress, data = dataset)
-  #prepost_analysis <- aov(Post - Pre ~ Sex * Stress, data = dataset)
-#  anova_result <- anova(prepost_analysis)
-#  print(anova_result)
-#  return(prepost_analysis)
-#}
 
-#pre_post_model_low <- pre_post_statistics(freezing_acquisition_low)
-#pre_post_model_high <-pre_post_statistics(freezing_acquisition_high)
+
 
 check_histograms <- function(dataset){
   hist(dataset$residuals)
 }
 
-check_histograms()
+
 #Low
-hist(prepost_lm_low$residuals)
+hist(rm_lme4_model_low$residuals)
 
 #High
-hist(prepost_lm_high$residuals)
+hist(rm_lme4_model_high$residuals)
 
 
 # HIGH 2 minute extinction if I want to only look at 2 minute group
