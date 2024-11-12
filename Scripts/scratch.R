@@ -1,3 +1,6 @@
+# Testing out a few different things and a few naming conventions here. 
+# TODO delete before finalizing
+
 sex_column <- c("Male", "Female", "Male")
 stress_column <- c("Stress","no_Stress","Stress")
 Condition_column <- c(2,10,2)

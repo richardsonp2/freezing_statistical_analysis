@@ -11,6 +11,8 @@ library(emmeans)
 library(lmerTest)
 
 
+# TODO where interactions are present, pull the required tests into the main script. Remove the copied and pasted stuff.
+
 # Begin by loading the dataset 
 file_path <- "./Datasets/high_low_combined.csv"
 
@@ -154,7 +156,7 @@ select_dataset_timepoint <- function(dataset, timepoint) {
     "acquisition" = dataset %>% select(Pre, Post, all_of(factor_cols)),
     "recall_combined" = dataset %>% select(recall_1, all_of(factor_cols)),
     "recall_2only" = dataset %>% select(recall_1, all_of(factor_cols)) %>% filter(Condition == 2),
-    "extinction" = dataset %>% select(all_of(extinction_cols), all_of(factor_cols)),
+    "extinction" = dataset %>% select(all_of(extinction_cols), all_of(factor_cols)) %>% filter(Condition == 10),
     "extinction_recall" = dataset %>% select(extinction_recall, all_of(factor_cols)),
     "reminder_shock" = dataset %>% select(reminder_day1_shock, all_of(factor_cols)),
     "reminder_recall" = dataset %>% select(reminder_day2, all_of(factor_cols))
@@ -232,99 +234,70 @@ pre_post_rm_lme4 <- function(dataset) {
   return(rm_lme4_model)
 }
 
-rm_lme4_model <- lmer(Percentage_freezing ~ Pre_Post * Sex * Stress + (1|Subject), data = freezing_acquisition_low_long)
-plot(rm_lme4_model)
-qqnorm(resid(rm_lme4_model))
-qqline(resid(rm_lme4_model))
-hist(resid(rm_lme4_model))
-
+# Check over normality of residuals. Was the model correct to use? 
+# Residuals look normally distributed, if a little kurtotic.
+# QQ plot shows some deviation from normality, but not too bad (is this expected with the pre-post element of the data?)
+check_model_assumptions <- function(model) {
+  plot(model)
+  qqnorm(resid(model))
+  qqline(resid(model))
+  hist(resid(model))
+}
 # Apply the function 
 rm_lme4_model_low <- pre_post_rm_lme4(freezing_acquisition_low_long)
 summary(rm_lme4_model_low)
 rm_lme4_model_high <- pre_post_rm_lme4(freezing_acquisition_high_long)
 summary(rm_lme4_model_high)
 
+check_model_assumptions(rm_lme4_model_low)
+check_model_assumptions(rm_lme4_model_high)
+
+#### RECALL --------------------------------------------------------------------
+# Use low_recall_combined and high_recall_combined
 
 
-
-
-check_histograms <- function(dataset){
-  hist(dataset$residuals)
-}
-
-
-#Low
-hist(rm_lme4_model_low$residuals)
-
-#High
-hist(rm_lme4_model_high$residuals)
-
-
-# HIGH 2 minute extinction if I want to only look at 2 minute group
-
-
-#LOW 2 minute extinction if I want to only look at 2 minute group
-#### RECALL ##################################
-
-
-# No need to filter by 2 as recall is for every animal
-filter_recall_group <- function(dataset){
-  recall_filtered_dataset <- dataset %>% 
-    select(c(1:4),recall_1)
-  return(recall_filtered_dataset)
-}
-
-recall_group_2_low <- filter_recall_group(complete_ds_low)
-recall_group_2_high <- filter_recall_group(complete_ds_high)
-
-recall_group_2_low_count <- recall_group_2_low %>% 
-  group_by(Sex, Stress) %>% 
-  count()
-
-
+# No need to use repeated models here, only one time point 
 recall_anova_test <- function(dataset){
   recall_lm <- lm(data = dataset, recall_1 ~ Sex * Stress * Condition)
   #summary(recall_lm_high)
   anova_result <- anova(recall_lm)
   return(anova_result)
 }
-recall_anova_low <- recall_anova_test(recall_group_2_low)
-recall_anova_high <- recall_anova_test(recall_group_2_high)
 
+# Check over normality of residuals. Was the model correct to use? 
+# Residuals 
+# QQ plot 
+recall_lm <- lm(data = low_recall_combined, recall_1 ~ Sex * Stress * Condition)
+plot(rm_lme4_model)
+qqnorm(resid(rm_lme4_model))
+qqline(resid(rm_lme4_model))
+hist(resid(rm_lme4_model))
 
+recall_anova_low <- recall_anova_test(low_recall_combined)
+recall_anova_high <- recall_anova_test(high_recall_combined)
 
-#### Extinction ----
+#### Extinction ----------------------------------------------------------------
+# Use low_extinction and high_extinction
 
-
-filter_extinction_group <- function(dataset){
-  ten_minute_extinction <- dataset %>% 
-    select(c(1:4),c(8:12)) %>% 
-    filter(Condition ==10)
-  return(ten_minute_extinction)
-}
 ten_minute_pivot_function <- function (dataset){
+  print(head(dataset))
   dataset$Subject <- seq_along(dataset[,1])
   ten_minute_extinction_long <- dataset %>% 
-    pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
+    pivot_longer(cols = c(1:5), names_to = "timepoint", values_to = "percentage") %>% 
     droplevels()
   ten_minute_extinction_long$timepoint <- as.factor(ten_minute_extinction_long$timepoint)
   return(ten_minute_extinction_long)
 }
   
+ten_minute_pivot_low <- ten_minute_pivot_function(low_extinction)
+ten_minute_pivot_high <- ten_minute_pivot_function(high_extinction)
 
-
-ten_minute_low <- filter_extinction_group(complete_ds_low)
-ten_minute_high <- filter_extinction_group(complete_ds_high)
-
-ten_minute_pivot_low <- ten_minute_pivot_function(ten_minute_low)
-ten_minute_pivot_high <- ten_minute_pivot_function(ten_minute_high)
-
-
-##### What model should I use here.
-# I think this is the best model to use
-# How do I see if there is an influence of timepoint, only considering the difference between 2 and 10 (1st and last timepoint).
+# Building a model that compares timepoint, sex and stress with subject as nested vairable
+# This is a mixed effects model
+# This is a repeated measures model
+# This is a model that will be used to compare the timecourse of extinction between groups
 extinction_timecourse_model <- function(dataset) {
-  # Assuming 'Subject' is your subject identifier in the dataset
+  # Subject is the identifier in the dataset
   # Fit the mixed-effects model
   rm_lme4_model <- lmer(percentage ~ timepoint * Sex * Stress + (1|Subject), data = dataset)
   summary(rm_lme4_model)
@@ -335,34 +308,17 @@ extinction_timecourse_results_low <- extinction_timecourse_model(ten_minute_pivo
 summary(extinction_timecourse_results_low)
 extinction_timecourse_results_high <- extinction_timecourse_model(ten_minute_pivot_high)
 summary(extinction_timecourse_results_high)
-# 
-# # MODEL 1: Sex + Stress + Sex * Stress + timepoint <- very simple model
-# low_ten_min_extinction_model <- lm(data = ten_minute_extinction_low_long, percentage ~ Stress + Sex + Sex * Stress * timepoint)
-# 
-# summary(low_ten_min_extinction_model)
-# Anova(low_ten_min_extinction_model)
-# 
-# #### HIGH Inferential 10 minute (ten_minute_extinction) ----
-# ten_minute_extinction_high <- complete_ds_high %>% 
-#   select(c(1:4),c(8:12)) %>% 
-#   filter(Condition ==10)
-# 
-# #ten_minute_ds <- list(ten_minute_extinction$ext1_curve, ten_minute_extinction$ext2_curve, ten_minute_extinction$ext3_curve, ten_minute_extinction$ext4_curve, ten_minute_extinction$ext5_curve)
-# 
-# ten_minute_extinction_high_long <- ten_minute_extinction_high %>% 
-#   pivot_longer(cols = c(5:9), names_to = "timepoint", values_to = "percentage") %>% 
-#   droplevels()
-# ten_minute_extinction_high_long$timepoint <- as.factor(ten_minute_extinction_high_long$timepoint)
-# 
-# # MODEL 1: Sex + Stress + Sex * Stress + timepoint <- very simple model
-# high_ten_min_extinction_model <- lm(data = ten_minute_extinction_high_long, percentage ~ Stress + Sex + Sex * Stress * timepoint)
-# 
-# summary(high_ten_min_extinction_model)
-# Anova(high_ten_min_extinction_model)
 
+# Check over normality of residuals. Was the model correct to use?
+# Residuals
+# QQ plot
+check_model_assumptions(extinction_timecourse_results_low)
+check_model_assumptions(extinction_timecourse_results_high)
 
 
 #### Individual 10 minute RM examinations: 
+
+# I do this to specifically dig into the effects of extinction (2 minute vs 10 minute)
 
 filter_pivot_individual_function <- function(dataset, stress_condition = "ELS", sex = "Male"){
   filtered_stress_sex <- dataset %>% 
@@ -405,6 +361,9 @@ long_individual_ten_analysis_function <- function(dataset){
   anova_value <- Anova(ten_min_extinction_model)
   return(anova_value)
 }
+
+# TODO check this, what am I doing here?!
+
 # Keep like this, even though copy paste I prefer this for inferential analysis.
 low_indiv_extinction_analysis_ELS_M <- long_individual_ten_analysis_function(long_ten_ELS_Male_low)
 low_indiv_extinction_analysis_NS_M <- long_individual_ten_analysis_function(long_ten_NS_Male_low)
@@ -460,32 +419,9 @@ summary(six_minute_dataset_results_high)
 
 
 
-#### HIGH extinction recall (recall_1) 
-recall_filter_function <- function(dataset){
-  recall_1 <- dataset %>% 
-    select(c(1:4),"extinction_recall")
-}
-recall_1_low <- recall_filter_function(complete_ds_low)
-recall_1_high <- recall_filter_function(complete_ds_high)
+#### Extinction recall
 
-# 
-# hist(recall_1_high$extinction_recall)
-# 
-# #log transform
-# recall_1_high$extinction_recallPLusone <- recall_1_high$extinction_recall + 1
-# recall_1_high$extinction_recall_log <- log(recall_1_high$extinction_recallPLusone)
-# 
-# #sqrt transform
-# recall_1_high$extinction_recall_sqrt <- sqrt(recall_1_high$extinction_recall)
-# 
-# #box cox - doesnt work 
-# recall_1_high$extinction_recall_box <- boxCox(recall_1_high$extinction_recall)
-# 
-# hist(recall_1_high$extinction_recall)
-# hist(recall_1_high$extinction_recall_log)
-# shapiro.test(recall_1_high$extinction_recall)
-# shapiro.test(recall_1_high$extinction_recall_sqrt)
-
+# Building a model that will test the effects of sex, stress and condition on extinction recall
 recall_inferential_test_function <- function(dataset){
   ext_recall_lm <- lm(data = dataset, extinction_recall ~ Sex + Stress + Condition + Sex:Stress + Sex:Condition + Stress:Condition + Sex:Sex:Condition)
   summary(ext_recall_lm)
@@ -494,10 +430,10 @@ recall_inferential_test_function <- function(dataset){
 }
 ext_recall_low_anova <- recall_inferential_test_function(recall_1_low)
 ext_recall_high_anova <- recall_inferential_test_function(recall_1_high)
-#try a possion dist <- not sure that this is correct
-# poisson_model_high_glm <- glm(extinction_recall ~ Sex + Stress + Condition + Sex:Stress + Sex:Condition + Stress:Condition + Sex:Sex:Condition, data = recall_1_high, family = poisson(link = "log"))
-# summary(poisson_model_high_glm)
+
 #individual t tests conducted assess each group 
+# I do this as ad hoc I knew that these are the results I was most intersted in. 
+# Futhermore, these tests are completely independant. 
 # M ELS
 m_els_ds <- recall_1 %>% 
   filter(Sex == "Male" & Stress == "ELS")
@@ -552,7 +488,7 @@ t.test(extinction_recall ~ Condition, data = f_ns_ds_high)
 #this isnt working yet!
 #lapply(split_datasets, t.test(extinction_recall ~ Condition))
 
-
+#### BELOW TO MAYBE REMOVE _------------------------------
 #HIGH reminder (reminder_shock) 
 #individual t tests conducted assess each group 
 # M ELS
