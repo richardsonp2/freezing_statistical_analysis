@@ -8,6 +8,7 @@ library(cowplot)
 library(svglite)
 library(grid)
 library(emmeans)
+library(GGally)
 
 # Exploratory Data Analysis (EDA) Overview
 
@@ -60,9 +61,6 @@ clean_factors <- function(ds) {
   
   # Reverse the factor levels for 'Condition'
   ds$Condition <- fct_rev(ds$Condition)
-  
-  
-  
   return(ds)
 }
 
@@ -84,7 +82,7 @@ complete_ds$Sex <- as.factor(complete_ds$Sex)
 # Display the structure of the cleaned dataset
 str(complete_ds)
 
-# 1. Data Overview and Structure
+#### Data Overview and Structure -----------------------------------------------
 # - Load the data and review its structure (columns, data types, missing values).
 # - Summarise categorical variables (e.g., Sex, Stress, Condition) and examine class distributions.
 # - Identify continuous vs. categorical variables to guide the choice of visualisations.
@@ -143,18 +141,78 @@ post_sex <- ggplot(acquisition_ds_na_remove, aes(x = Post, fill = Sex)) +
 post_stress
 post_sex
 
-# The distribution becomes more left skewed for the post scores.
+# The distribution becomes more left skewed for the post scores. Which of course makes sense.
 
 
 
-# 2. Data Cleaning and Preprocessing
-# - Check for missing values and handle them appropriately (e.g., imputation or removal).
-# - Convert any columns to the appropriate data types (factors for categorical data).
-# - Look for and address any potential outliers or inconsistencies in the data.
+#### Check for and address any potential outliers or inconsistencies in the data. ---------------
+# - Use boxplots or violin plots to identify potential outliers or extreme values. However, due to the min max being 0 and 100 extreme values dont really apply here. 
+complete_ds %>%
+  select(num_cols) %>%
+  gather(key = "variable", value = "value") %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Continuous Variables",
+       x = "Variable",
+       y = "Value") +
+  theme_minimal()
 
-# 3. Univariate Analysis
-# - Analyze each variable individually to understand distributions:
-#   - For categorical variables (e.g., Sex, Stress, Condition), use bar plots or pie charts to show proportions.
+# Can see that most of the data is showing freezing levels below 50 %.
+
+# How much has the shock intensity changed the freezing levels? 
+# This is a bit of a complex plot, but it shows the change in freezing levels across the different shock intensities.
+# Low
+low_boxplots <- complete_ds %>% 
+  filter(Shock == "l") %>%
+  select(num_cols) %>%
+  gather(key = "variable", value = "value") %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot() +
+  labs(title = "LOW Boxplot of Continuous Variables",
+       x = "Variable",
+       y = "Value") +
+  theme_minimal()
+
+low_boxplots
+
+high_boxplots <- complete_ds %>% 
+  filter(Shock == "h") %>%
+  select(num_cols) %>%
+  gather(key = "variable", value = "value") %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot() +
+  labs(title = "HIGH Boxplot of Continuous Variables",
+       x = "Variable",
+       y = "Value") +
+  theme_minimal()
+
+high_boxplots
+
+# Show the plots side by side
+plot_grid(low_boxplots, high_boxplots)
+
+# High shock intensity has brought the levels up, but most freezing is still well below 50%. 
+
+#### Univariate Analysis of factoral variables.---------------------------------
+#   - For categorical variables (e.g., Sex, Stress, Condition), use pie charts to show proportions.
+
+# Produce pie charts for the different categorical variables. Easy way to see if the overall balance is off. 
+complete_ds %>% 
+  select(factor_cols) %>%
+  gather(key = "variable", value = "value") %>%
+  filter(!is.na(value)) %>%  # Exclude NA values
+  count(variable, value) %>%
+  ggplot(aes(x = "", y = n, fill = value)) +
+  geom_bar(stat = "identity", width = 1) +
+  geom_text(aes(label = n), position = position_stack(vjust = 0.5))+
+  coord_polar("y") +
+  facet_wrap(~variable) +
+  labs(title = "Proportion of Categorical Variables",
+       fill = "Value") +
+  scale_fill_manual(values = c("ELS" = "green", "NS" = "red", "Male" = "blue", "Female" = "orange", "2" = "yellow", "10" = "pink", "l" = "brown", "h" = "beige")) +  
+  theme_minimal()+
+  theme(axis.text.x = element_blank()) 
+
 #   - For continuous variables, create histograms or density plots to assess spread, skewness, and central tendency.
 
 # 4. Bivariate Analysis
@@ -165,11 +223,22 @@ post_sex
 # 5. Multivariate Analysis and Interactions
 # - Investigate interactions between multiple variables:
 #   - Use faceted plots to examine differences across combinations of variables, such as Sex and Stress on Condition.
-#   - Pair plots or correlation plots (if there are multiple continuous variables) to identify relationships.
+
+#   - Pair plots to identify relationships.
+complete_ds %>%
+  select(num_cols) %>%
+  ggpairs() +
+  labs(title = "Correlation Matrix of Numerical Variables") +
+  theme_minimal()
+
+
 
 # 6. Initial Observations and Summary of Patterns
 # - Record any patterns, clusters, or notable trends observed in the data.
 # - Identify any unexpected findings or potential issues (e.g., large class imbalances, unusual outliers).
+
+# Check for clusters in each timepoint variable (numerical cols)
+
 
 # 7. Next Steps and Preparation for Inferential Analysis CHeck for normality across the different variables.
 # - Summarise key insights from the EDA that will guide the inferential analysis.

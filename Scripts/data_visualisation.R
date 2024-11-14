@@ -132,7 +132,7 @@ count_n <- function(dataset, type = "overall"){
   return (n_dataset)
 }
 
-##### Main count run #####
+##### Main count run -----------------------------------------------------------
 overall_count <- count_n(complete_ds, "overall")
 sex_count <- count_n(complete_ds, "sex")
 sex_stress_count <- count_n(complete_ds, "sexstress")
@@ -257,7 +257,7 @@ high_reminder_shock <- select_dataset_timepoint(complete_ds_high, "reminder_shoc
 high_reminder_recall <- select_dataset_timepoint(complete_ds_high, "reminder_recall")
 
 
-#### TODO convert this to a config file for better management of themes --------
+# TODO convert this to a config file for better management of themes 
 #### Figure Theme ##############################################################
 blank_figure_theme <- theme(plot.title = element_text(hjust = 0.5),
                             axis.line = element_blank(),
@@ -282,7 +282,7 @@ annotate_figure_function <- function(figure,title_text, color = "red", face = "b
   annotate_figure(p = figure, top = text_grob(title_text, color = color, face = face, size = size))
 }
 
-# Four class colours --------------------------------------------------------
+#### Four class colours --------------------------------------------------------
 four_class <- c("#ff1f5b", "#00CD6C", "#009ADE", "#AF58BE")
 orange_blue <- c("#ff870f", "#ffc182", "#1c20fc", "#b3b4ff")
 orange_blue_bar <- c("#b3b4ff","#1c20fc", "#ffc182","#ff870f")
@@ -797,7 +797,7 @@ combined_reminder_shock <- annotate_figure(combined_reminder_shock, left = textG
 combined_reminder_shock
 
 
-#Reminder recall ##########################################################
+#### Reminder recall ##########################################################
 descriptives_function <- function(dataset){
   reminder_recall_descr <- dataset %>%
     mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
@@ -1016,59 +1016,123 @@ plot_grid(longplot2, longplot10full, labels = "AUTO", rel_widths = c(1,1))
 
 #### Kerries suggested figures -------------------------------------------------
 # After discussion with my supervisor Kerrie Thomas 25/08/23, it was agreed to present longitudinal figures. 
+# This shows the freezing, post acquisition, over time. 
 # Functions below are to generate these figures. 
 
+# For longitudinal data need to filter for 2 and 10
+complete_ds_2_low <- complete_ds_low %>% 
+  filter(Condition == "2")
 
-#two_minute_combined_descriptives <- read.csv("./Datasets/twoMinuteCombinedDescriptives.csv")
-long_figure_function <- function(dataset, isLabeled = TRUE){
-  two_minute_descriptives <- dataset %>%
-  select(Stress, Sex, recall_1, c(13:15)) %>% 
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  unite(sex_stress, c(figures_sex, Stress), remove=FALSE) %>% 
-  group_by(sex_stress) %>% 
-  summarize(mean_shockrecall = mean(recall_1, na.rm = T), sem_shockrecall = sd(recall_1, na.rm = T)/sqrt(length(recall_1)),
-            mean_extrecall = mean(extinction_recall, na.rm = T), sem_extrecall = sd(extinction_recall, na.rm = T)/sqrt(length(extinction_recall)),
-            mean_remtest = mean(reminder_day1_shock, na.rm = T), sem_remtest = sd(reminder_day1_shock, na.rm = T)/sqrt(length(reminder_day1_shock)),
-            mean_remrecall = mean(reminder_day2, na.rm = T), sem_remrecall = sd(reminder_day2, na.rm = T)/sqrt(length(reminder_day2))
-  ) %>% 
-  pivot_longer(cols = c(mean_shockrecall, mean_extrecall, mean_remtest, mean_remrecall,
-                        sem_shockrecall, sem_extrecall, sem_remtest, sem_remrecall),
-               names_to = c(".value","Timepoint"), names_pattern = "(.*?)_(.*)") %>% 
-  mutate(fig_timepoint = factor(Timepoint, levels = c("shockrecall", "extrecall", "remtest", "remrecall"))) %>% 
-  rename(mean_values = mean, sem_values = sem)
+complete_ds_2_high <- complete_ds_high %>% 
+  filter(Condition == "2")
+
+complete_ds_10_low <- complete_ds_low %>% 
+  filter(Condition == "10")
+
+complete_ds_10_high <- complete_ds_high %>% 
+  filter(Condition == "10")
+
+#' Compute Descriptives
+#'
+#' This function calculates mean and SEM values for shock recall, extinction recall,
+#' reminder test, and reminder recall based on sex and stress groupings.
+#'
+#' @param dataset Data frame containing recall measurements and relevant grouping variables.
+#' @return A data frame with mean and SEM values for each measurement and group.
+calculate_descriptives <- function(dataset) {
+  dataset %>%
+    select(Stress, Sex, recall_1, c(13:15)) %>% 
+    mutate(figures_sex = fct_reorder(Sex, desc(Sex))) %>%
+    unite(sex_stress, c(figures_sex, Stress), remove = FALSE) %>% 
+    group_by(sex_stress) %>% 
+    summarize(
+      mean_shockrecall = mean(recall_1, na.rm = TRUE), 
+      sem_shockrecall = sd(recall_1, na.rm = TRUE) / sqrt(length(recall_1)),
+      mean_extrecall = mean(extinction_recall, na.rm = TRUE), 
+      sem_extrecall = sd(extinction_recall, na.rm = TRUE) / sqrt(length(extinction_recall)),
+      mean_remtest = mean(reminder_day1_shock, na.rm = TRUE), 
+      sem_remtest = sd(reminder_day1_shock, na.rm = TRUE) / sqrt(length(reminder_day1_shock)),
+      mean_remrecall = mean(reminder_day2, na.rm = TRUE), 
+      sem_remrecall = sd(reminder_day2, na.rm = TRUE) / sqrt(length(reminder_day2))
+    )
+}
+
+#' Format Descriptives Data
+#'
+#' Reshapes and formats the descriptive statistics data for plotting.
+#'
+#' @param descriptives Data frame of calculated descriptives.
+#' @return A formatted data frame suitable for plotting.
+format_descriptives <- function(descriptives) {
+  descriptives %>%
+    pivot_longer(
+      cols = c(mean_shockrecall, mean_extrecall, mean_remtest, mean_remrecall,
+               sem_shockrecall, sem_extrecall, sem_remtest, sem_remrecall),
+      names_to = c(".value", "Timepoint"), names_pattern = "(.*?)_(.*)"
+    ) %>%
+    mutate(
+      fig_timepoint = factor(Timepoint, levels = c("shockrecall", "extrecall", "remtest", "remrecall"))
+    ) %>%
+    rename(mean_values = mean, sem_values = sem)
+}
 
 
+#' Create Longplot
+#'
+#' Generates the ggplot object for the plot based on the formatted data.
+#'
+#' @param data Data frame with mean values, SEM values, and grouping variables.
+#' @return A ggplot object for the longplot.
+create_longplot <- function(data) {
+  ggplot(data, aes(x = Timepoint, y = mean_values, group = sex_stress, color = sex_stress)) +
+    geom_line(size = 0.8) +
+    geom_errorbar(aes(ymin = mean_values - sem_values, ymax = mean_values + sem_values), width = .2, alpha = 0.7) +
+    ylim(0, 100) +
+    blank_figure_theme
+}
 
-factor_cols <- c("Timepoint", "sex_stress")
-two_minute_descriptives[factor_cols] <- lapply(two_minute_descriptives[factor_cols], factor)
-
-# So that figure is in the right order
-two_minute_descriptives$Timepoint <- two_minute_descriptives$Timepoint %>%
-  factor(levels = c("shockrecall", "extrecall", "remtest", "remrecall"))
-
-longplot_4points <- ggplot(two_minute_descriptives, aes(x = Timepoint, y = mean_values, group = sex_stress, color =sex_stress))+
-  geom_line(size = 0.8)+
-  geom_errorbar(aes(ymin=mean_values-sem_values, ymax=mean_values+sem_values), width=.2, alpha = 0.7)+
-  ylim(0,100)
-
-  # Formatting 
-  longplot_4points <- longplot_4points + blank_figure_theme
-
-if (isLabeled == TRUE) {
-  longplot_4points <- longplot_4points + scale_color_manual(labels = c( "Male_ELS" = "Male ELS",  "Male_NS" = "Male non-stressed" , "Female_ELS" = "Female ELS",  "Female_NS"= "Female non-stressed"),values=c(Male_ELS = "#1c20fc", Male_NS = "#b3b4ff", Female_ELS = "#ff870f", Female_NS ="#ffc182"))
-  longplot_4points <- longplot_4points + scale_x_discrete(labels = c("shockrecall" = "Shock recall", "extrecall"= "Extinction recall", "remtest" = "reminder test", "remrecall" = "Reminder Recall"))
+#' Apply Labels
+#'
+#' Applies custom labels and colors based on whether labeling is enabled.
+#'
+#' @param plot The ggplot object to modify.
+#' @param isLabeled Logical, if TRUE adds labels to the plot, otherwise hides labels.
+#' @return A ggplot object with the appropriate labeling applied.
+apply_labels <- function(plot, isLabeled) {
+  plot <- plot + scale_color_manual(
+    labels = c("Male_ELS" = "Male ELS", "Male_NS" = "Male non-stressed", 
+               "Female_ELS" = "Female ELS", "Female_NS" = "Female non-stressed"),
+    values = c(Male_ELS = "#1c20fc", Male_NS = "#b3b4ff", 
+               Female_ELS = "#ff870f", Female_NS = "#ffc182")
+  )
   
-}
-else if (isLabeled == FALSE) {
-  longplot_4points <- longplot_4points + scale_color_manual(labels = c( "Male_ELS" = "Male ELS",  "Male_NS" = "Male non-stressed" , "Female_ELS" = "Female ELS",  "Female_NS"= "Female non-stressed"),values=c(Male_ELS = "#1c20fc", Male_NS = "#b3b4ff", Female_ELS = "#ff870f", Female_NS ="#ffc182"))
-  longplot_4points <- longplot_4points + scale_x_discrete(labels = c("shockrecall" = "CFC recall", "extrecall"= "Extinction recall", "remtest" = "Reminder test", "remrecall" = "Reminder recall"))
-  longplot_4points <- longplot_4points + labs(x = NULL, y = NULL, fill = NULL, color = NULL)
-  longplot_4points <- longplot_4points + theme(legend.position = "none")
+  if (isLabeled) {
+    plot + scale_x_discrete(labels = c(
+      "shockrecall" = "Shock recall", "extrecall" = "Extinction recall",
+      "remtest" = "Reminder test", "remrecall" = "Reminder Recall"))
+  } else {
+    plot + scale_x_discrete(labels = c(
+      "shockrecall" = "CFC recall", "extrecall" = "Extinction recall",
+      "remtest" = "Reminder test", "remrecall" = "Reminder recall")) +
+      labs(x = NULL, y = NULL, fill = NULL, color = NULL) +
+      theme(legend.position = "none")
+  }
 }
 
-return (longplot_4points)
+#' Long Figure Function
+#'
+#' Main function to generate a plot of recall statistics with optional labeling.
+#'
+#' @param dataset Data frame containing recall data.
+#' @param isLabeled Logical, if TRUE adds labels to the plot, otherwise hides labels.
+#' @return A ggplot object.
+long_figure_function <- function(dataset, isLabeled = TRUE) {
+  descriptives <- calculate_descriptives(dataset)
+  formatted_data <- format_descriptives(descriptives)
+  plot <- create_longplot(formatted_data)
+  plot <- apply_labels(plot, isLabeled)
+  return(plot)
 }
-
 
 low_2extcont_long_figure <- long_figure_function(complete_ds_2_low, isLabeled = FALSE)
 high_2extcont_long_figure <- long_figure_function(complete_ds_2_high, isLabeled = FALSE)
@@ -1079,12 +1143,12 @@ high_10exttrain_long_figure <- long_figure_function(complete_ds_10_high, isLabel
 
 combined_210_figure <- ggarrange(low_2extcont_long_figure, low_10exttrain_long_figure,
                                  high_2extcont_long_figure,  high_10exttrain_long_figure, 
-          labels = c("Low shock,\nextinction control", "Low shock, \nextinction trained",
-                     "High shock, \nextinction control", "High shock, \nextinction trained"),
+          labels = c("Low shock,\n Extinction control", "Low shock, \n Extinction trained",
+                     "High shock, \n Extinction control", "High shock, \n Extinction trained"),
           ncol = 2, nrow = 2)
 
 combined_210_figure
-#Recall reminder shock and reminder recall #####################################
+#### Recall reminder shock and reminder recall #####################################
 
 complete_ds_low_combined_recall_remshock_remrecall <- complete_ds_low %>% 
   select(c("Stress","Sex", "Condition", "extinction_recall", "reminder_day1_shock", "reminder_day2")) 

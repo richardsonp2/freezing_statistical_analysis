@@ -2,7 +2,11 @@
 This repository contains statistical analysis and associated data on freezing behavior, a critical component of my thesis research. Freezing behavior analysis provides insights into stress responses, learning, memory, and behavioral adaptation under different conditions. This specific project aimed to examine the effects of early life stress, as seen in [Brydges et al. 2014](https://onlinelibrary.wiley.com/doi/full/10.1002/hipo.22259).
 
 # TODO 
-Make the data wrangling functions into a package for easier / more succinct use. 
+- Make the data wrangling functions into a package for easier / more succinct use. Functions which I will use a lot have Roxygen comments already to make this process easier.
+- I would like to produce an R markdown file that can be used to generate a report. I can then pull from my library the required
+functions and data.
+- I perhaps should have used a renv file. When I started this project I didnt know about renv. It looks like this would make library import more reproducible.
+- With more time, I would love to add testing for this. I have no unit coverage at all so far :( 
 
 ## Features and Analyses
 - **Data Preprocessing**: Cleaning and structuring raw behavioural freezing count data for analysis.
