@@ -10,10 +10,12 @@ library(rstatix)
 library(emmeans)
 library(lmerTest)
 
-
-# TODO where interactions are present, pull the required tests into the main script. Remove the copied and pasted stuff.
 #### Data import and cleaning --------------------------------------------------
 # This is the exact same as the EDA.R and data_visualisation.R script (up to Inferential Analysis). I would really like to make this a package. 
+# The dataset contains some artifacts which were in place to make manually scoring behaivour easier. For example putting in X's where freezing was absent. 
+# The dataset also contains artifacts accidently put in during the manual scoring of the behaviour. 
+# Many rows will have NA values due to either not recording the freezing on that day, or being a 10 minute point in the 2 minute group. 
+# I am thinking of making this into a package for any future freezing analysis needs. This is why most of the code is commented with Roxygen comments.
 # Begin by loading the dataset 
 file_path <- "./Datasets/high_low_combined.csv"
 
@@ -62,6 +64,19 @@ clean_factors <- function(ds, factor_cols) {
   return(ds)
 }
 
+# Function to convert columns to appropriate data types: factors and numerics
+convert_columns <- function(ds) {
+  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
+  num_cols <- c("Pre", "Post", "recall_1", "ext1_curve", "ext2_curve", 
+                "ext3_curve", "ext4_curve", "ext5_curve", 
+                "extinction_recall", "reminder_day1_shock", "reminder_day2")
+  
+  ds[factor_cols] <- lapply(ds[factor_cols], function(x) as.factor(x))
+  ds[num_cols] <- lapply(ds[num_cols], as.numeric)
+  
+  return(ds)
+}
+
 #' Perform Main Cleaning
 #'
 #' Main function to clean a dataset by combining raw data cleaning and factor column processing.
@@ -83,25 +98,13 @@ clean_dataset <- function(file_path) {
     filter(Sex != "x")
   
   # Step 4: Clean factor columns
-  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
-  ds <- clean_factors(ds, factor_cols)
+  ds <- convert_columns(ds)
   
   return(ds)
 }
 
 
-# Function to convert columns to appropriate data types: factors and numerics
-convert_columns <- function(ds) {
-  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
-  num_cols <- c("Pre", "Post", "recall_1", "ext1_curve", "ext2_curve", 
-                "ext3_curve", "ext4_curve", "ext5_curve", 
-                "extinction_recall", "reminder_day1_shock", "reminder_day2")
-  
-  ds[factor_cols] <- lapply(ds[factor_cols], function(x) as.factor(x))
-  ds[num_cols] <- lapply(ds[num_cols], as.numeric)
-  
-  return(ds)
-}
+
 
 #' Reverse Factor Levels
 #'
@@ -258,7 +261,10 @@ select_dataset_timepoint <- function(dataset, timepoint) {
     "acquisition" = dataset %>% select(Pre, Post, all_of(factor_cols)),
     "recall_combined" = dataset %>% select(recall_1, all_of(factor_cols)),
     "recall_2only" = dataset %>% select(recall_1, all_of(factor_cols)) %>% filter(Condition == 2),
-    "extinction" = dataset %>% select(all_of(extinction_cols), all_of(factor_cols)) %>% filter(Condition == 10),
+    "extinction" = dataset %>%
+      select(all_of(extinction_cols), all_of(factor_cols)) %>%
+      filter(Condition == 10) %>%
+      mutate(across(all_of(extinction_cols), as.numeric)),
     "extinction_recall" = dataset %>% select(extinction_recall, all_of(factor_cols)),
     "reminder_shock" = dataset %>% select(reminder_day1_shock, all_of(factor_cols)),
     "reminder_recall" = dataset %>% select(reminder_day2, all_of(factor_cols))
@@ -501,7 +507,6 @@ t.test(extinction_recall ~ Condition, data = m_els_combined_low)
 t.test(extinction_recall ~ Condition, data = m_ns_combined_low)
 t.test(extinction_recall ~ Condition, data = f_els_combined_low)
 t.test(extinction_recall ~ Condition, data = f_ns_combined_low)
-
 # High
 t.test(extinction_recall ~ Condition, data = m_els_combined_high)
 t.test(extinction_recall ~ Condition, data = m_ns_combined_high)

@@ -12,11 +12,12 @@ library(GGally)
 
 # Exploratory Data Analysis (EDA) Overview
 
-
-
-# TODO where interactions are present, pull the required tests into the main script. Remove the copied and pasted stuff.
 #### Data import and cleaning --------------------------------------------------
 # This is the exact same as the EDA.R and data_visualisation.R script (up to Inferential Analysis). I would really like to make this a package. 
+# The dataset contains some artifacts which were in place to make manually scoring behaivour easier. For example putting in X's where freezing was absent. 
+# The dataset also contains artifacts accidently put in during the manual scoring of the behaviour. 
+# Many rows will have NA values due to either not recording the freezing on that day, or being a 10 minute point in the 2 minute group. 
+# I am thinking of making this into a package for any future freezing analysis needs. This is why most of the code is commented with Roxygen comments.
 # Begin by loading the dataset 
 file_path <- "./Datasets/high_low_combined.csv"
 
@@ -65,6 +66,19 @@ clean_factors <- function(ds, factor_cols) {
   return(ds)
 }
 
+# Function to convert columns to appropriate data types: factors and numerics
+convert_columns <- function(ds) {
+  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
+  num_cols <- c("Pre", "Post", "recall_1", "ext1_curve", "ext2_curve", 
+                "ext3_curve", "ext4_curve", "ext5_curve", 
+                "extinction_recall", "reminder_day1_shock", "reminder_day2")
+  
+  ds[factor_cols] <- lapply(ds[factor_cols], function(x) as.factor(x))
+  ds[num_cols] <- lapply(ds[num_cols], as.numeric)
+  
+  return(ds)
+}
+
 #' Perform Main Cleaning
 #'
 #' Main function to clean a dataset by combining raw data cleaning and factor column processing.
@@ -86,25 +100,13 @@ clean_dataset <- function(file_path) {
     filter(Sex != "x")
   
   # Step 4: Clean factor columns
-  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
-  ds <- clean_factors(ds, factor_cols)
+  ds <- convert_columns(ds)
   
   return(ds)
 }
 
 
-# Function to convert columns to appropriate data types: factors and numerics
-convert_columns <- function(ds) {
-  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
-  num_cols <- c("Pre", "Post", "recall_1", "ext1_curve", "ext2_curve", 
-                "ext3_curve", "ext4_curve", "ext5_curve", 
-                "extinction_recall", "reminder_day1_shock", "reminder_day2")
-  
-  ds[factor_cols] <- lapply(ds[factor_cols], function(x) as.factor(x))
-  ds[num_cols] <- lapply(ds[num_cols], as.numeric)
-  
-  return(ds)
-}
+
 
 #' Reverse Factor Levels
 #'
@@ -261,7 +263,10 @@ select_dataset_timepoint <- function(dataset, timepoint) {
     "acquisition" = dataset %>% select(Pre, Post, all_of(factor_cols)),
     "recall_combined" = dataset %>% select(recall_1, all_of(factor_cols)),
     "recall_2only" = dataset %>% select(recall_1, all_of(factor_cols)) %>% filter(Condition == 2),
-    "extinction" = dataset %>% select(all_of(extinction_cols), all_of(factor_cols)) %>% filter(Condition == 10),
+    "extinction" = dataset %>%
+      select(all_of(extinction_cols), all_of(factor_cols)) %>%
+      filter(Condition == 10) %>%
+      mutate(across(all_of(extinction_cols), as.numeric)),
     "extinction_recall" = dataset %>% select(extinction_recall, all_of(factor_cols)),
     "reminder_shock" = dataset %>% select(reminder_day1_shock, all_of(factor_cols)),
     "reminder_recall" = dataset %>% select(reminder_day2, all_of(factor_cols))
@@ -290,6 +295,7 @@ high_extinction <- select_dataset_timepoint(complete_ds_high, "extinction")
 high_extinction_recall <- select_dataset_timepoint(complete_ds_high, "extinction_recall")
 high_reminder_shock <- select_dataset_timepoint(complete_ds_high, "reminder_shock")
 high_reminder_recall <- select_dataset_timepoint(complete_ds_high, "reminder_recall")
+
 
 
 #### Data Overview and Structure -----------------------------------------------
@@ -359,6 +365,7 @@ post_sex
 # - Use boxplots or violin plots to identify potential outliers or extreme values. However, due to the min max being 0 and 100 extreme values dont really apply here. 
 complete_ds %>%
   select(num_cols) %>%
+  na.omit() %>%
   gather(key = "variable", value = "value") %>%
   ggplot(aes(x = variable, y = value)) +
   geom_boxplot() +
@@ -433,24 +440,110 @@ create_pie_charts <- function(data, factor_columns) {
 }
 
 # Can present the pie charts for each timepoint. However be aware some pies will not make much sense (eg Condition at acquisition)
-pie_charts_acquisition_low <- create_pie_charts(low_acquisition, factor_cols)
+
 # Acquisition
+pie_charts_acquisition_low <- create_pie_charts(low_acquisition, factor_cols)
+pie_charts_acquisition_high <- create_pie_charts(high_acquisition, factor_cols)
+# Recall
+pie_charts_recall_combined_low <- create_pie_charts(low_recall_combined, factor_cols)
+pie_charts_recall_combined_high <- create_pie_charts(high_recall_combined, factor_cols)
+# Extinction recall
+pie_charts_extinction_recall_low <- create_pie_charts(low_extinction_recall, factor_cols)
+pie_charts_extinction_recall_high <- create_pie_charts(high_extinction_recall, factor_cols)
 
 
-#   - For continuous variables, create histograms or density plots to assess spread, skewness, and central tendency.
 
-# 4. Bivariate Analysis
-# - Explore relationships between pairs of variables:
-#   - Use boxplots or violin plots to visualise the distribution of continuous variables across categories.
-#   - Cross-tabulations and mosaic plots to show interactions between categorical variables.
+# Counts 
 
-# 5. Multivariate Analysis and Interactions
-# - Investigate interactions between multiple variables:
-#   - Use faceted plots to examine differences across combinations of variables, such as Sex and Stress on Condition.
 
-#   - Pair plots to identify relationships.
-complete_ds %>%
-  select(num_cols) %>%
-  ggpairs() +
-  labs(title = "Correlation Matrix of Numerical Variables") +
-  theme_minimal()
+#' Count observations in a dataset based on grouping type
+#'
+#' This function counts the number of observations in a dataset with optional grouping by factors like "Sex," "Stress," 
+#' "Condition," and "Shock." The grouping can be specified with the `type` argument.
+#'
+#' @param dataset A data frame containing the data to be counted.
+#' @param type A character string specifying the grouping for the count. Valid options are:
+#'   * "overall" - no grouping, just counts all observations
+#'   * "sex" - groups by the `Sex` column
+#'   * "sexstress" - groups by `Sex` and `Stress` columns
+#'   * "allfactors" - groups by `Sex`, `Stress`, `Condition`, and `Shock` columns
+#' @return A data frame with counts of observations based on the specified grouping.
+#' @examples
+#' # Count all observations
+#' count_n(my_data, type = "overall")
+#' @export
+count_n <- function(dataset, type = "overall"){
+  valid_choices <- c("overall", "sex", "sexstress", "allfactors")
+  
+  # Check if the input_string is one of the valid choices
+  if (!(type %in% valid_choices)) {
+    # Raise an exception with a custom error message
+    stop(sprintf("Invalid input: '%s'. Valid options are: %s", 
+                 type, paste(valid_choices, collapse = ", ")))
+  }
+  if (type == "overall"){
+    n_dataset <- dataset %>%
+      count()
+  }
+  else if (type == "sex"){
+    n_dataset <- dataset %>% 
+      group_by(Sex) %>% 
+      count()
+  }
+  else if (type == "sexstress"){
+    n_dataset <- dataset %>%
+      group_by(Sex, Stress) %>%
+      count()
+  }
+  else if (type == "allfactors"){
+    n_dataset <- dataset %>% 
+      group_by(Sex, Stress, Condition, Shock) %>% 
+      count()
+  }
+  return (n_dataset)
+}
+
+##### Main count run -----------------------------------------------------------
+overall_count <- count_n(complete_ds, "overall")
+sex_count <- count_n(complete_ds, "sex")
+sex_stress_count <- count_n(complete_ds, "sexstress")
+all_factors_count <- count_n(complete_ds, "allfactors")
+
+
+#' Subset for shock intensity 
+#'
+#' @param dataset A data frame containing the data to be subset.
+#' @param intensity A character string specifying the shock intensity. Valid options are:
+#'   * "Low" - Low shock intensity 0.5mA
+#'   * "High" - High shock intensity 0.7mA
+#' @return The subsetted shock intensity data frame. 
+#' @export
+subset_by_shock_intensity <- function(dataset, intensity){
+  
+  if (intensity == "Low"){
+    subset <- dataset %>% 
+      filter (Shock == "l")
+  }
+  else if (intensity =="High"){
+    subset <- dataset %>% 
+      filter (Shock == "h")
+  }
+  return (subset)
+}
+
+complete_ds_low <- subset_by_shock_intensity(complete_ds, "Low")
+complete_ds_high <- subset_by_shock_intensity(complete_ds, "High")
+
+#### Counts for Low and High ---------------------------------------------------
+
+# Low counts 
+overall_count_low <- count_n(complete_ds_low, "overall")
+sex_count_low <- count_n(complete_ds_low, "sex")
+sex_stress_count_low <- count_n(complete_ds_low, "sexstress")
+all_factors_count_low <- count_n(complete_ds_low, "allfactors")
+
+# High counts
+overall_count_high <- count_n(complete_ds_high, "overall")
+sex_count_high <- count_n(complete_ds_high, "sex")
+sex_stress_count_high <- count_n(complete_ds_high, "sexstress")
+all_factors_count_high <- count_n(complete_ds_high, "allfactors")

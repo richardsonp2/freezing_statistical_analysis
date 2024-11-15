@@ -9,35 +9,62 @@ library(svglite)
 library(grid)
 library(emmeans)
 
+
+#### Data import and cleaning --------------------------------------------------
+# This is the exact same as the EDA.R and data_visualisation.R script (up to Inferential Analysis). I would really like to make this a package. 
 # The dataset contains some artifacts which were in place to make manually scoring behaivour easier. For example putting in X's where freezing was absent. 
 # The dataset also contains artifacts accidently put in during the manual scoring of the behaviour. 
 # Many rows will have NA values due to either not recording the freezing on that day, or being a 10 minute point in the 2 minute group. 
 # I am thinking of making this into a package for any future freezing analysis needs. This is why most of the code is commented with Roxygen comments.
+# Begin by loading the dataset 
 file_path <- "./Datasets/high_low_combined.csv"
 
-# I will use these throughout the script to select by different columns
+# I will use these throughout the script to both convert the datatype of the col appropriately and
+# select by different columns
 factor_cols <- c("Shock", "Stress", "Sex", "Condition")
 num_cols <- c("Pre", "Post", "recall_1", "ext1_curve", "ext2_curve", 
               "ext3_curve", "ext4_curve", "ext5_curve", 
               "extinction_recall", "reminder_day1_shock", "reminder_day2")
 
-
-# Function to read and clean the dataset
-clean_dataset <- function(file_path) {
-  ds <- read.csv(file_path, na.strings = c(".", "#DIV/0!"))
+#' Read and Clean Raw Data
+#'
+#' Helper function to load a CSV file and replace specified values with `NA`.
+#'
+#' @param file_path A string specifying the path to the CSV file.
+#' @param na_strings A character vector of strings to be treated as `NA`.
+#' @return A data frame with specified values replaced by `NA`.
+#' @importFrom utils read.csv
+read_and_clean_raw_data <- function(file_path, na_strings = c(".", "#DIV/0!")) {
+  ds <- read.csv(file_path, na.strings = na_strings)
   ds[ds == "#DIV/0!"] <- NA
-  
-  # Fix space issue in the 'Stress' variable
-  ds$Stress[ds$Stress == " NS"] <- "NS"
-  
-  # Remove entries with 'x' in 'Sex'
-  ds <- ds %>%
-    filter(Sex != "x")
-  
   return(ds)
 }
 
-# Function to convert columns to appropriate data types
+#' Clean Factor Columns
+#'
+#' Helper function to clean and drop unused levels in specified factor columns.
+#'
+#' @param ds A data frame containing the dataset.
+#' @param factor_cols A character vector specifying the factor columns to clean.
+#' @return A data frame with cleaned factor columns.
+#' @importFrom base droplevels
+clean_factors <- function(ds, factor_cols) {
+  for (col in factor_cols) {
+    
+    # Convert to factor if not already
+    if (!is.factor(ds[[col]])) {
+      ds[[col]] <- as.factor(ds[[col]])
+    }
+    
+    # Replace empty strings with NA
+    ds[[col]][ds[[col]] == ""] <- NA
+    # Drop unused factor levels
+    ds[[col]] <- droplevels(ds[[col]])
+  }
+  return(ds)
+}
+
+# Function to convert columns to appropriate data types: factors and numerics
 convert_columns <- function(ds) {
   factor_cols <- c("Shock", "Stress", "Sex", "Condition")
   num_cols <- c("Pre", "Post", "recall_1", "ext1_curve", "ext2_curve", 
@@ -49,80 +76,118 @@ convert_columns <- function(ds) {
   
   return(ds)
 }
-################
+
+#' Perform Main Cleaning
+#'
+#' Main function to clean a dataset by combining raw data cleaning and factor column processing.
+#'
+#' @param file_path A string specifying the path to the CSV file.
+#' @return A cleaned data frame.
+#' @importFrom dplyr filter
+#' @importFrom forcats fct_rev
+#' @export
+clean_dataset <- function(file_path) {
+  # Step 1: Read and clean raw data
+  ds <- read_and_clean_raw_data(file_path)
+  
+  # Step 2: Fix space issue in the 'Stress' variable
+  ds$Stress[ds$Stress == " NS"] <- "NS"
+  
+  # Step 3: Remove invalid entries in 'Sex'
+  ds <- ds %>%
+    filter(Sex != "x")
+  
+  # Step 4: Clean factor columns
+  ds <- convert_columns(ds)
+  
+  return(ds)
+}
+
+
+
+
+#' Reverse Factor Levels
+#'
+#' This function reverses the order of levels in a specified factor column within a dataset.
+#'
+#' @param ds A data frame containing the dataset.
+#' @param factor_col A string specifying the name of the factor column in the dataset whose levels
+#'   should be reversed.
+#'
+#' @details This function modifies the specified factor column by reversing its levels using
+#'   the `fct_rev` function from the `forcats` package.
+#'
+#' @return A data frame with the specified factor column updated to have reversed levels.
+#'
+#' @examples
+#' # Example dataset
+#' ds <- data.frame(
+#'   Condition = factor(c("Control", "Treatment", "Placebo"))
+#' )
+#'
+#' # Reverse the factor levels of the 'Condition' column
+#' reversed_ds <- reverse_factor_levels(ds, "Condition")
+#'
+#' @importFrom forcats fct_rev
+#' @export
+reverse_factor_levels <- function(ds, factor_col){
+  ds$factor_col <- fct_rev(ds$factor_col)
+  return(ds)
+}
 
 # Pre-processing script execution
 
 complete_ds <- clean_dataset(file_path)
-complete_ds <- convert_columns(complete_ds)
-complete_ds <- clean_factors(complete_ds)
 str(complete_ds)
+
+#' Standardize Sex Column Values
+#'
+#' This function standardizes the values in the `Sex` column of a dataset by converting 
+#' short forms ("M" and "F") to full forms ("Male" and "Female").
+#'
+#' @param ds A data frame containing a `Sex` column to standardize. The `Sex` column 
+#'   can be either a character or a factor.
+#'
+#' @details The function converts the `Sex` column to a character vector (if it is not 
+#'   already), replaces "M" with "Male" and "F" with "Female", and ensures the column
+#'   is returned in a standardized format.
+#'
+#' @return A data frame with the `Sex` column standardized to "Male" and "Female".
+#'
+#' @examples
+#' # Example dataset
+#' ds <- data.frame(
+#'   Sex = c("M", "F", "Male", "Female", "M"),
+#'   Value = 1:5
+#' )
+#'
+#' # Standardize the Sex column
+#' standardized_ds <- standardize_sex_column(ds)
+#'
+#' @export
+standardise_sex_column <- function(ds, convert_back_factor = TRUE) {
+  # Convert Sex column to character if not already
+  ds$Sex <- as.character(ds$Sex)
+  
+  # Replace short forms with full forms
+  ds$Sex[ds$Sex == "M"] <- "Male"
+  ds$Sex[ds$Sex == "F"] <- "Female"
+  
+  if (convert_back_factor) {
+    ds$Sex <- as.factor(ds$Sex)
+  }
+  
+  return(ds)
+}
 
 # I have inputted Male, M, Female and F for sex accidentally during the freezing analysis
 # Fix that here, bit of a complex workaround but I was having issues with dplyr 
-complete_ds$Sex <- as.character(complete_ds$Sex)
-complete_ds$Sex[complete_ds$Sex == "M"] <- "Male"
-complete_ds$Sex[complete_ds$Sex == "F"] <- "Female"
+complete_ds <- standardise_sex_column(complete_ds, convert_back_factor = TRUE)
 
-# Optionally, you can convert it back to a factor if needed:
+# Optionally, can convert it back to a factor if needed:
 complete_ds$Sex <- as.factor(complete_ds$Sex)
 # Display the structure of the cleaned dataset
 str(complete_ds)
-
-
-#' Count observations in a dataset based on grouping type
-#'
-#' This function counts the number of observations in a dataset with optional grouping by factors like "Sex," "Stress," 
-#' "Condition," and "Shock." The grouping can be specified with the `type` argument.
-#'
-#' @param dataset A data frame containing the data to be counted.
-#' @param type A character string specifying the grouping for the count. Valid options are:
-#'   * "overall" - no grouping, just counts all observations
-#'   * "sex" - groups by the `Sex` column
-#'   * "sexstress" - groups by `Sex` and `Stress` columns
-#'   * "allfactors" - groups by `Sex`, `Stress`, `Condition`, and `Shock` columns
-#' @return A data frame with counts of observations based on the specified grouping.
-#' @examples
-#' # Count all observations
-#' count_n(my_data, type = "overall")
-#' @export
-count_n <- function(dataset, type = "overall"){
-  valid_choices <- c("overall", "sex", "sexstress", "allfactors")
-  
-  # Check if the input_string is one of the valid choices
-  if (!(type %in% valid_choices)) {
-    # Raise an exception with a custom error message
-    stop(sprintf("Invalid input: '%s'. Valid options are: %s", 
-                 type, paste(valid_choices, collapse = ", ")))
-    }
-  if (type == "overall"){
-    n_dataset <- dataset %>%
-      count()
-  }
-  else if (type == "sex"){
-    n_dataset <- dataset %>% 
-      group_by(Sex) %>% 
-      count()
-  }
-  else if (type == "sexstress"){
-    n_dataset <- dataset %>%
-      group_by(Sex, Stress) %>%
-      count()
-    }
-  else if (type == "allfactors"){
-    n_dataset <- dataset %>% 
-      group_by(Sex, Stress, Condition, Shock) %>% 
-    count()
-  }
-  return (n_dataset)
-}
-
-##### Main count run -----------------------------------------------------------
-overall_count <- count_n(complete_ds, "overall")
-sex_count <- count_n(complete_ds, "sex")
-sex_stress_count <- count_n(complete_ds, "sexstress")
-all_factors_count <- count_n(complete_ds, "allfactors")
-
 
 #' Subset for shock intensity 
 #'
@@ -136,31 +201,17 @@ subset_by_shock_intensity <- function(dataset, intensity){
   
   if (intensity == "Low"){
     subset <- dataset %>% 
-    filter (Shock == "l")
+      filter (Shock == "l")
   }
   else if (intensity =="High"){
     subset <- dataset %>% 
-    filter (Shock == "h")
+      filter (Shock == "h")
   }
   return (subset)
 }
 
 complete_ds_low <- subset_by_shock_intensity(complete_ds, "Low")
 complete_ds_high <- subset_by_shock_intensity(complete_ds, "High")
-
-#### Counts for Low and High ---------------------------------------------------
-
-# Low counts 
-overall_count_low <- count_n(complete_ds_low, "overall")
-sex_count_low <- count_n(complete_ds_low, "sex")
-sex_stress_count_low <- count_n(complete_ds_low, "sexstress")
-all_factors_count_low <- count_n(complete_ds_low, "allfactors")
-
-# High counts
-overall_count_high <- count_n(complete_ds_high, "overall")
-sex_count_high <- count_n(complete_ds_high, "sex")
-sex_stress_count_high <- count_n(complete_ds_high, "sexstress")
-all_factors_count_high <- count_n(complete_ds_high, "allfactors")
 
 #' Generate a subset of the dataset for a specified timepoint
 #'
@@ -190,8 +241,6 @@ all_factors_count_high <- count_n(complete_ds_high, "allfactors")
 #' # Subset dataset for recall_2only timepoint, with Condition == 2
 #' recall_2only_subset <- select_dataset_timepoint(my_data, "recall_2only")
 #' @export
-#### Dataset generation for each timepoint -------------------------------------
-
 select_dataset_timepoint <- function(dataset, timepoint) {
   valid_choices <- c("acquisition", "recall_combined", "recall_2only", "extinction", "extinction_recall", "reminder_shock", "reminder_recall")
   
@@ -206,12 +255,16 @@ select_dataset_timepoint <- function(dataset, timepoint) {
   factor_cols <- c("Shock", "Stress", "Sex", "Condition")
   extinction_cols <- c("ext1_curve", "ext2_curve", "ext3_curve", "ext4_curve", "ext5_curve")
   
+  # Instead of a big long loop of if statements, a switch statement is used here
   subset_dataset <- switch(
     timepoint,
     "acquisition" = dataset %>% select(Pre, Post, all_of(factor_cols)),
     "recall_combined" = dataset %>% select(recall_1, all_of(factor_cols)),
     "recall_2only" = dataset %>% select(recall_1, all_of(factor_cols)) %>% filter(Condition == 2),
-    "extinction" = dataset %>% select(all_of(extinction_cols), all_of(factor_cols)),
+    "extinction" = dataset %>%
+      select(all_of(extinction_cols), all_of(factor_cols)) %>%
+      filter(Condition == 10) %>%
+      mutate(across(all_of(extinction_cols), as.numeric)),
     "extinction_recall" = dataset %>% select(extinction_recall, all_of(factor_cols)),
     "reminder_shock" = dataset %>% select(reminder_day1_shock, all_of(factor_cols)),
     "reminder_recall" = dataset %>% select(reminder_day2, all_of(factor_cols))
@@ -287,6 +340,55 @@ line_label<-c("Female ELS", "Female NS", "Male ELS", "Male NS")
 key_label <-  c("Male NS", "Male ELS","Female NS", "Female ELS")
 
 
+
+
+
+#' Count observations in a dataset based on grouping type
+#'
+#' This function counts the number of observations in a dataset with optional grouping by factors like "Sex," "Stress," 
+#' "Condition," and "Shock." The grouping can be specified with the `type` argument.
+#'
+#' @param dataset A data frame containing the data to be counted.
+#' @param type A character string specifying the grouping for the count. Valid options are:
+#'   * "overall" - no grouping, just counts all observations
+#'   * "sex" - groups by the `Sex` column
+#'   * "sexstress" - groups by `Sex` and `Stress` columns
+#'   * "allfactors" - groups by `Sex`, `Stress`, `Condition`, and `Shock` columns
+#' @return A data frame with counts of observations based on the specified grouping.
+#' @examples
+#' # Count all observations
+#' count_n(my_data, type = "overall")
+#' @export
+count_n <- function(dataset, type = "overall"){
+  valid_choices <- c("overall", "sex", "sexstress", "allfactors")
+  
+  # Check if the input_string is one of the valid choices
+  if (!(type %in% valid_choices)) {
+    # Raise an exception with a custom error message
+    stop(sprintf("Invalid input: '%s'. Valid options are: %s", 
+                 type, paste(valid_choices, collapse = ", ")))
+  }
+  if (type == "overall"){
+    n_dataset <- dataset %>%
+      count()
+  }
+  else if (type == "sex"){
+    n_dataset <- dataset %>% 
+      group_by(Sex) %>% 
+      count()
+  }
+  else if (type == "sexstress"){
+    n_dataset <- dataset %>%
+      group_by(Sex, Stress) %>%
+      count()
+  }
+  else if (type == "allfactors"){
+    n_dataset <- dataset %>% 
+      group_by(Sex, Stress, Condition, Shock) %>% 
+      count()
+  }
+  return (n_dataset)
+}
 
 
 ##### Acquisition ---------------------------------------------------------
@@ -373,7 +475,7 @@ prepost_figure_ds_high <- make_figure_prepost_ds(freezing_prepost_descriptives_h
 #' @export
 linechart_prepost_figure_function <- function(dataset, y_axis_limit = 100){
   linechart_prepost_high <- ggplot(dataset, aes(x= prepost, y = mean, group = sex_stress, colour = sex_stress))+
-    geom_line(size = 1.0)+
+    geom_line(linewidth = 1.0)+
     coord_cartesian(ylim = c(0, y_axis_limit)) +
     scale_y_continuous(breaks=seq(0,y_axis_limit,20), expand = c(0,0))+
     geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), width=.2,
@@ -428,7 +530,6 @@ high_figure <- linechart_count_and_titles(linechart_prepost_high, high_count_acq
 combined_linechart_prepost<- ggarrange(low_figure, high_figure, ncol=2, nrow=1, labels = "auto", common.legend = FALSE, legend="bottom")
 combined_linechart_prepost <- annotate_figure(combined_linechart_prepost, left = textGrob(y_title, rot = 90, vjust = 1, gp = gpar(cex = 1.3)))
 combined_linechart_prepost
-ggsave("combined_linechart_prepost.png", plot =combined_linechart_prepost, path = "./Combined/")
 
 
 #### Recall --------------------------------------------------------------------
@@ -445,33 +546,20 @@ filter_2min_recall_function <- function(dataset){
 df_2minext_low <- filter_2min_recall_function(complete_ds_low)
 df_2minext_high <- filter_2min_recall_function(complete_ds_high)
 
-
+# Descriptives for the two minute recall
 two_minute_descriptives_function <- function(dataset){
   
   two_minute_descriptives <- dataset %>%
     mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
     group_by(figures_sex, Stress)%>%
     summarize(mean_recall = mean(recall_1, na.rm = T), sem_recall = sd(recall_1, na.rm = T)/sqrt(length(recall_1)))
-  #write.csv(two_minute_descriptives, file = "./High/Descriptives/two_minute_descriptives.csv")
-  
 }
+
 low_two_minute_descriptives <- two_minute_descriptives_function(df_2minext_low)
 high_two_minute_descriptives <- two_minute_descriptives_function(df_2minext_high)
 
 two_minute_extinction_low_count <- count_simple_function(df_2minext_low)
 two_minute_extinction_high_count <- count_simple_function(df_2minext_high)
-
-
-
-# Is this needed? 
-# two_minute_indivpoints <- two_minute_extinction %>%
-#   mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-#   unite(sex_stress, c(Sex, Stress), remove=FALSE)
-# two_minute_indivpoints$sex_stress <- factor(two_minute_indivpoints$sex_stress,levels = c("Male_ELS", "Male_NS", "Female_ELS", "Female_NS"))
-
-recall_results <- two_minute_descriptives %>%
-  unite(sex_stress, c(figures_sex, Stress), remove = FALSE)
-recall_results$sex_stress <- factor(recall_results$sex_stress,levels = c("Male_NS", "Male_ELS", "Female_NS","Female_ELS"))
 
 
 generate_recall_2min_figure <- function(dataset, shock_intensity = low_string){
@@ -514,8 +602,6 @@ combined_2min_bar <- ggarrange(ext_2min_figure_low, ext_2min_figure_high, ncol=2
 combined_2min_bar <- combined_2min_bar <- annotate_figure_function(figure = combined_2min_bar, title_text = NULL)
 combined_2min_bar <- annotate_figure(combined_2min_bar, left = textGrob("Freezing percentage", rot = 90, vjust = 1,hjust= 0.3, gp = gpar(cex = 1.3)))
 combined_2min_bar
-ggsave("combined_barchart_2min.png", plot =combined_2min_bar, path = "./Combined/")
-
 
 # TODO remove this
 #inferentials
@@ -710,9 +796,6 @@ combined_extinction_recall <- combined_extinction_recall <- annotate_figure_func
 combined_extinction_recall <- annotate_figure(combined_extinction_recall, left = textGrob(y_title, rot = 90, vjust = 1,hjust= 0.3, gp = gpar(cex = 1.3)))
 combined_extinction_recall
 
-ggsave("Extinction_recall_chart.png", plot = combined_extinction_recall, path = "./combined")
-
-
 #### Reminder Shock-------------------------------------------------------------
 # As this figure will be very similar to the extinction recall figuire I think I will adjust that function and have an argument to change the title,
 # The dataset will be different but the presentation will be exactly the same for Extinction recall, reminder shock and reminder recall
@@ -774,7 +857,6 @@ low_reminder_shock_figure <- reminder_shock_figure(low_reminder_shock)
 high_reminder_shock_figure <- reminder_shock_figure(high_reminder_shock)
 low_reminder_shock_figure
 high_reminder_shock_figure
-ggsave("reminder_shock_high.png", plot = bar_chart_reminder_shock_high, path = "./High/Figures/")
 
 combined_reminder_shock <- ggarrange(low_reminder_shock_figure, high_reminder_shock_figure, ncol=2, nrow=1, labels = "auto", common.legend = TRUE,legend = "bottom")
 combined_reminder_shock <- combined_reminder_shock <- annotate_figure_function(figure = combined_reminder_shock, title_text = NULL)
@@ -797,7 +879,7 @@ individual_points_function <- function(dataset){
     mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
     unite(sex_stress_condition, c(Sex,Stress,Condition), remove = FALSE) %>%
     unite(sex_stress, c(Sex, Stress), remove = FALSE)
-  return(reminder_recall_low_indivpoints)
+  return(reminder_recall_indivpoints)
 }
 
 reminder_recall_figure <- function(figure, shock_intensity, count_dataset = dataset){
@@ -848,156 +930,13 @@ combined_reminder_recall_function <- function(dataset, shock_intensity = low_str
   
   }
 
-low_reminder_recall_figure <- combined_reminder_recall_function(reminder_recall_low, shock_intensity = low_string)
-high_reminder_recall_figure <- combined_reminder_recall_function(reminder_recall_high, shock_intensity = high_string)
+low_reminder_recall_figure <- combined_reminder_recall_function(low_reminder_recall, shock_intensity = low_string)
+high_reminder_recall_figure <- combined_reminder_recall_function(high_reminder_recall, shock_intensity = high_string)
 
 combined_reminder_recall <- ggarrange(low_reminder_recall_figure, high_reminder_recall_figure, ncol=2, nrow=1, common.legend = TRUE,legend = "bottom")
 combined_reminder_recall <- combined_reminder_recall <- annotate_figure_function(figure = combined_reminder_recall, title_text = NULL)
 combined_reminder_recall <- annotate_figure(combined_reminder_recall, left = textGrob("Freezing percentage", rot = 90, vjust = 1,hjust= 0.3, gp = gpar(cex = 1.3)))
 combined_reminder_recall
-
-#### Recall and extinction split -----------------------------------------------
-# try spliting the High intensity shock dataset into 2 across the 2 minute and 10 minute group
-complete_ds_2 <- complete_ds %>%
-  filter(Condition == "2")
-write.csv(complete_ds_2, "./Datasets/completeds2.csv")
-
-complete_ds_2_low <- complete_ds_2 %>% 
-  filter(Shock == "l")
-
-complete_ds_2_high <- complete_ds_2 %>% 
-  filter(Shock == "h")
-
-
-complete_ds_10 <- complete_ds %>%
-  filter(Condition == "10")
-write.csv(complete_ds_10, "./Datasets/completeds10.csv")
-
-complete_ds_10_low <- complete_ds_10 %>% 
-  filter(Shock == "l")
-
-complete_ds_10_high <- complete_ds_10 %>% 
-  filter(Shock == "h")
-
-
-# write.csv(two_minute_recall_seperated_descriptives, "./Datasets/twoMinuteRecall.csv")
-# write.csv(two_minute_extinctionRecall_seperated_descriptives, "./Datasets/twoMinuteExtinctionRecall.csv")
-# write.csv(two_minute_reminderShock_seperated_descriptives, "./Datasets/twoMinuteReminderShock.csv")
-# write.csv(two_minute_reminderRecall_seperated_descriptives, "./Datasets/twoMinuteReminderRecall.csv")
-
-# two_minute_combined_descriptives <- read.csv("./Datasets/twoMinuteCombinedDescriptives.csv")
-
-
-two_minute_combined_descriptives <- two_minute_combined_descriptives %>%
-  unite(sex_stress, c(figures_sex, Stress), remove=FALSE)
-
-factor_cols <- c("Timepoint", "sex_stress")
-two_minute_combined_descriptives[factor_cols] <- lapply(two_minute_combined_descriptives[factor_cols], factor)
-
-two_minute_combined_descriptives$Timepoint <- two_minute_combined_descriptives$Timepoint %>%
-  factor(levels = c("Recall1", "ExtinctionRecall", "ReminderShock", "Reminder_Recall"))
-
-
-longplot2 <- ggplot(two_minute_combined_descriptives, aes(x = Timepoint, y = mean_recall, group = sex_stress, color =sex_stress))+
-  geom_line(size = 0.8)+
-  geom_errorbar(aes(ymin=mean_recall-sem_recall, ymax=mean_recall+sem_recall), width=.2, alpha = 0.7)+
-  ylim(0,80)
-
-longplot2 <- longplot2 + scale_color_manual(labels = c( "Male_ELS" = "Male ELS",  "Male_NS" = "Male non-stressed" , "Female_ELS" = "Female ELS",  "Female_NS"= "Female non-stressed"),values=c(Male_ELS = "#1c20fc", Male_NS = "#b3b4ff", Female_ELS = "#ff870f", Female_NS ="#ffc182"))
-longplot2 <- longplot2 + scale_x_discrete(labels = c("Recall1" = "(Shock recall)", "ExtinctionRecall"= "Extinction recall", "ReminderShock" = "Reminder Shock", "Reminder_Recall" = "Reminder Recall"))
-longplot2 <- longplot2 + labs(x = "Timepoint", y = "Freezing percentage", color = "Condition", title = "2 minute group")
-#longplot2 <- longplot2 + theme(legend.position = "none")
-longplot2
-
-ggsave("Longplot2.png", plot =longplot2, path = "./High/Figures/", width = 950, height = 732, unit = "px")
-
-# now for the 10 minute group
-ten_minute_extinction_descriptives <- complete_ds_10 %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  group_by(figures_sex, Stress)%>%
-  #summarize(mean_recall = mean(recall_1, na.rm = T), sem_recall = sd(recall_1, na.rm = T))
-  summarize(mean_recall = mean(recall_1, na.rm = T), sem_recall = sd(recall_1, na.rm = T)/sqrt(length(recall_1)))
-
-
-ten_minute_extinctionRecall_seperated_descriptives <- complete_ds_10 %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  group_by(figures_sex, Stress)%>%
-  #summarize(mean_recall = mean(recall_1, na.rm = T), sem_recall = sd(recall_1, na.rm = T))
-  summarize(mean_recallext1 = mean(ext1_curve, na.rm = T), sem_recallext1 = sd(ext1_curve, na.rm = T)/sqrt(length(ext1_curve)),
-            mean_recallext2 = mean(ext2_curve, na.rm = T), sem_recallext2 = sd(ext2_curve, na.rm = T)/sqrt(length(ext2_curve)),
-            mean_recallext3 = mean(ext3_curve, na.rm = T), sem_recallext3 = sd(ext3_curve, na.rm = T)/sqrt(length(ext3_curve)),
-            mean_recallext4 = mean(ext4_curve, na.rm = T), sem_recallext4 = sd(ext4_curve, na.rm = T)/sqrt(length(ext4_curve)),
-            mean_recallext5 = mean(ext5_curve, na.rm = T), sem_recallext5 = sd(ext5_curve, na.rm = T)/sqrt(length(ext5_curve)))
-
-ten_minute_reminderShock_seperated_descriptives <- complete_ds_10 %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  group_by(figures_sex, Stress)%>%
-  #summarize(mean_recall = mean(recall_1, na.rm = T), sem_recall = sd(recall_1, na.rm = T))
-  summarize(mean_recall = mean(reminder_day1_shock, na.rm = T), sem_recall = sd(reminder_day1_shock, na.rm = T)/sqrt(length(reminder_day1_shock)))
-
-ten_minute_reminderRecall_seperated_descriptives <- complete_ds_10 %>%
-  mutate(figures_sex = fct_reorder(Sex, desc(Sex)))%>%
-  group_by(figures_sex, Stress)%>%
-  #summarize(mean_recall = mean(recall_1, na.rm = T), sem_recall = sd(recall_1, na.rm = T))
-  summarize(mean_recall = mean(reminder_day2, na.rm = T), sem_recall = sd(reminder_day2, na.rm = T)/sqrt(length(reminder_day2)))
-
-write.csv(ten_minute_extinction_descriptives, "./Datasets/tenMinuteRecall.csv")
-write.csv(ten_minute_extinctionRecall_seperated_descriptives, "./Datasets/ten_minute_extinctionRecall_seperated_descriptives.csv")
-write.csv(ten_minute_reminderShock_seperated_descriptives, "./Datasets/tenMinuteReminderShock.csv")
-write.csv(ten_minute_reminderRecall_seperated_descriptives, "./Datasets/tenMinuteReminderRecall.csv")
-
-#where is this coming from?
-ten_minute_combined_descriptives <- read.csv("./Datasets/tenMinuteCombinedDataset.csv")
-
-
-ten_minute_combined_descriptives <- ten_minute_combined_descriptives %>%
-  unite(sex_stress, c(figures_sex, Stress), remove=FALSE)
-
-factor_cols <- c("Timepoint", "sex_stress")
-ten_minute_combined_descriptives[factor_cols] <- lapply(ten_minute_combined_descriptives[factor_cols], factor)
-
-ten_minute_combined_descriptives$Timepoint <- ten_minute_combined_descriptives$Timepoint %>%
-  factor(levels = c("Recall1", "Ext2", "Ext3", "Ext4", "Ext5", "ReminderShock", "Reminder_Recall"))
-
-ten_minute_combined_descriptives <- na.omit(ten_minute_combined_descriptives)
-
-longplot10full <- ggplot(ten_minute_combined_descriptives, aes(x = Timepoint, y = mean_recall, group = sex_stress, color =sex_stress))+
-  geom_line(size = 0.8)+
-  #I dont think this is right!
-  geom_errorbar(aes(ymin=mean_recall-sem_recall, ymax=mean_recall+sem_recall), width=.2, alpha = 0.7)+
-  ylim(0,80)
-
-longplot10full <- longplot10full + scale_color_manual(labels = c( "Male_ELS" = "Male ELS",  "Male_NS" = "Male non-stressed" , "Female_ELS" = "Female ELS",  "Female_NS"= "Female non-stressed"),values=c(Male_ELS = "#1c20fc", Male_NS = "#b3b4ff", Female_ELS = "#ff870f", Female_NS ="#ffc182"))
-longplot10full <- longplot10full + scale_x_discrete(labels = c("Recall1" = "LTM1 \n (Shock recall)", "ExtinctionRecall"= "LTM2 \n (Extinction recall)", "ReminderShock" = "LTM3 \n (Long delay with reminder end)", "Reminder_Recall" = "LTM4 \n (Reminder Recall)"))
-longplot10full <- longplot10full + labs(x = "Timepoint", y = "Freezing percentage", color = "Condition", title = "10 minute group")
-longplot10full
-
-
-#The figure without the long extinction timepoint
-ten_minute_combined_descriptives_short <- read.csv("./Datasets/tenMinuteCombinedDataset_shorter.csv")
-
-ten_minute_combined_descriptives_short <- ten_minute_combined_descriptives_short %>%
-  unite(sex_stress, c(figures_sex, Stress), remove=FALSE)
-
-factor_cols <- c("Timepoint", "sex_stress")
-ten_minute_combined_descriptives_short[factor_cols] <- lapply(ten_minute_combined_descriptives_short[factor_cols], factor)
-
-ten_minute_combined_descriptives_short$Timepoint <- ten_minute_combined_descriptives_short$Timepoint %>%
-  factor(levels = c("Recall1", "Ext1", "ReminderShock", "Reminder_Recall"))
-
-
-longplot10 <- ggplot(ten_minute_combined_descriptives_short, aes(x = Timepoint, y = mean_recall, group = sex_stress, color =sex_stress))+
-  geom_line(size = 0.8)+
-  geom_errorbar(aes(ymin=mean_recall-sem_recall, ymax=mean_recall+sem_recall), width=.2, alpha = 0.7)+
-  ylim(0,80)
-
-longplot10 <- longplot10 + scale_color_manual(labels = c( "Male_ELS" = "Male ELS",  "Male_NS" = "Male non-stressed" , "Female_ELS" = "Female ELS",  "Female_NS"= "Female non-stressed"),values=c(Male_ELS = "#1c20fc", Male_NS = "#b3b4ff", Female_ELS = "#ff870f", Female_NS ="#ffc182"))
-longplot10 <- longplot10 + scale_x_discrete(labels = c("Recall1" = "Shock recall", "Ext1"= "Extinction recall", "ReminderShock" = "LTM2", "Reminder_Recall" = "Reminder Recall"))
-longplot10
-
-
-
-plot_grid(longplot2, longplot10full, labels = "AUTO", rel_widths = c(1,1))
 
 #### Kerries suggested figures -------------------------------------------------
 # After discussion with my supervisor Kerrie Thomas 25/08/23, it was agreed to present longitudinal figures. 
@@ -1070,7 +1009,7 @@ format_descriptives <- function(descriptives) {
 #' @return A ggplot object for the longplot.
 create_longplot <- function(data) {
   ggplot(data, aes(x = Timepoint, y = mean_values, group = sex_stress, color = sex_stress)) +
-    geom_line(size = 0.8) +
+    geom_line(linewidth = 0.8) +
     geom_errorbar(aes(ymin = mean_values - sem_values, ymax = mean_values + sem_values), width = .2, alpha = 0.7) +
     ylim(0, 100) +
     blank_figure_theme
@@ -1182,7 +1121,7 @@ figure_build_extctionrecall_reminder_remrecall_figure_function <- function(first
    count()
 
 recall_reminder_figure_combined <- ggplot(data = descriptives_dataset, aes(x = timepoint, y = mean, group = sex_stress, color = sex_stress)) + 
-  geom_line(size = 1) +
+  geom_line(linewidth = 1) +
   geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), width=.2, alpha = 0.7)+
   #TODO make this the limit of the mean + SEM + around 10 more
   coord_cartesian(ylim = c(0, 60)) 
