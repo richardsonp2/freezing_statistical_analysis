@@ -13,7 +13,7 @@ library(lmerTest)
 
 # TODO where interactions are present, pull the required tests into the main script. Remove the copied and pasted stuff.
 #### Data import and cleaning --------------------------------------------------
-
+# This is the exact same as the EDA.R and data_visualisation.R script (up to Inferential Analysis). I would really like to make this a package. 
 # Begin by loading the dataset 
 file_path <- "./Datasets/high_low_combined.csv"
 
@@ -24,23 +24,73 @@ num_cols <- c("Pre", "Post", "recall_1", "ext1_curve", "ext2_curve",
               "ext3_curve", "ext4_curve", "ext5_curve", 
               "extinction_recall", "reminder_day1_shock", "reminder_day2")
 
-
-# Function to read and clean the dataset
-clean_dataset <- function(file_path) {
-  ds <- read.csv(file_path, na.strings = c(".", "#DIV/0!"))
+#' Read and Clean Raw Data
+#'
+#' Helper function to load a CSV file and replace specified values with `NA`.
+#'
+#' @param file_path A string specifying the path to the CSV file.
+#' @param na_strings A character vector of strings to be treated as `NA`.
+#' @return A data frame with specified values replaced by `NA`.
+#' @importFrom utils read.csv
+read_and_clean_raw_data <- function(file_path, na_strings = c(".", "#DIV/0!")) {
+  ds <- read.csv(file_path, na.strings = na_strings)
   ds[ds == "#DIV/0!"] <- NA
+  return(ds)
+}
+
+#' Clean Factor Columns
+#'
+#' Helper function to clean and drop unused levels in specified factor columns.
+#'
+#' @param ds A data frame containing the dataset.
+#' @param factor_cols A character vector specifying the factor columns to clean.
+#' @return A data frame with cleaned factor columns.
+#' @importFrom base droplevels
+clean_factors <- function(ds, factor_cols) {
+  for (col in factor_cols) {
+    
+    # Convert to factor if not already
+    if (!is.factor(ds[[col]])) {
+      ds[[col]] <- as.factor(ds[[col]])
+    }
+    
+    # Replace empty strings with NA
+    ds[[col]][ds[[col]] == ""] <- NA
+    # Drop unused factor levels
+    ds[[col]] <- droplevels(ds[[col]])
+  }
+  return(ds)
+}
+
+#' Perform Main Cleaning
+#'
+#' Main function to clean a dataset by combining raw data cleaning and factor column processing.
+#'
+#' @param file_path A string specifying the path to the CSV file.
+#' @return A cleaned data frame.
+#' @importFrom dplyr filter
+#' @importFrom forcats fct_rev
+#' @export
+clean_dataset <- function(file_path) {
+  # Step 1: Read and clean raw data
+  ds <- read_and_clean_raw_data(file_path)
   
-  # Fix space issue in the 'Stress' variable
+  # Step 2: Fix space issue in the 'Stress' variable
   ds$Stress[ds$Stress == " NS"] <- "NS"
   
-  # Remove entries with 'x' in 'Sex'
+  # Step 3: Remove invalid entries in 'Sex'
   ds <- ds %>%
     filter(Sex != "x")
+  
+  # Step 4: Clean factor columns
+  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
+  ds <- clean_factors(ds, factor_cols)
   
   return(ds)
 }
 
-# Function to convert columns to appropriate data types
+
+# Function to convert columns to appropriate data types: factors and numerics
 convert_columns <- function(ds) {
   factor_cols <- c("Shock", "Stress", "Sex", "Condition")
   num_cols <- c("Pre", "Post", "recall_1", "ext1_curve", "ext2_curve", 
@@ -52,35 +102,84 @@ convert_columns <- function(ds) {
   
   return(ds)
 }
-# Function to clean empty strings in factor columns
-clean_factors <- function(ds) {
-  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
-  
-  for (col in factor_cols) {
-    ds[[col]][ds[[col]] == ""] <- NA
-    ds[[col]] <- droplevels(ds[[col]])
-  }
-  
-  # Reverse the factor levels for 'Condition'
-  ds$Condition <- fct_rev(ds$Condition)
-  
-  
-  
+
+#' Reverse Factor Levels
+#'
+#' This function reverses the order of levels in a specified factor column within a dataset.
+#'
+#' @param ds A data frame containing the dataset.
+#' @param factor_col A string specifying the name of the factor column in the dataset whose levels
+#'   should be reversed.
+#'
+#' @details This function modifies the specified factor column by reversing its levels using
+#'   the `fct_rev` function from the `forcats` package.
+#'
+#' @return A data frame with the specified factor column updated to have reversed levels.
+#'
+#' @examples
+#' # Example dataset
+#' ds <- data.frame(
+#'   Condition = factor(c("Control", "Treatment", "Placebo"))
+#' )
+#'
+#' # Reverse the factor levels of the 'Condition' column
+#' reversed_ds <- reverse_factor_levels(ds, "Condition")
+#'
+#' @importFrom forcats fct_rev
+#' @export
+reverse_factor_levels <- function(ds, factor_col){
+  ds$factor_col <- fct_rev(ds$factor_col)
   return(ds)
 }
 
 # Pre-processing script execution
 
 complete_ds <- clean_dataset(file_path)
-complete_ds <- convert_columns(complete_ds)
-complete_ds <- clean_factors(complete_ds)
 str(complete_ds)
+
+#' Standardize Sex Column Values
+#'
+#' This function standardizes the values in the `Sex` column of a dataset by converting 
+#' short forms ("M" and "F") to full forms ("Male" and "Female").
+#'
+#' @param ds A data frame containing a `Sex` column to standardize. The `Sex` column 
+#'   can be either a character or a factor.
+#'
+#' @details The function converts the `Sex` column to a character vector (if it is not 
+#'   already), replaces "M" with "Male" and "F" with "Female", and ensures the column
+#'   is returned in a standardized format.
+#'
+#' @return A data frame with the `Sex` column standardized to "Male" and "Female".
+#'
+#' @examples
+#' # Example dataset
+#' ds <- data.frame(
+#'   Sex = c("M", "F", "Male", "Female", "M"),
+#'   Value = 1:5
+#' )
+#'
+#' # Standardize the Sex column
+#' standardized_ds <- standardize_sex_column(ds)
+#'
+#' @export
+standardise_sex_column <- function(ds, convert_back_factor = TRUE) {
+  # Convert Sex column to character if not already
+  ds$Sex <- as.character(ds$Sex)
+  
+  # Replace short forms with full forms
+  ds$Sex[ds$Sex == "M"] <- "Male"
+  ds$Sex[ds$Sex == "F"] <- "Female"
+  
+  if (convert_back_factor) {
+    ds$Sex <- as.factor(ds$Sex)
+  }
+  
+  return(ds)
+}
 
 # I have inputted Male, M, Female and F for sex accidentally during the freezing analysis
 # Fix that here, bit of a complex workaround but I was having issues with dplyr 
-complete_ds$Sex <- as.character(complete_ds$Sex)
-complete_ds$Sex[complete_ds$Sex == "M"] <- "Male"
-complete_ds$Sex[complete_ds$Sex == "F"] <- "Female"
+complete_ds <- standardise_sex_column(complete_ds, convert_back_factor = TRUE)
 
 # Optionally, can convert it back to a factor if needed:
 complete_ds$Sex <- as.factor(complete_ds$Sex)
@@ -153,6 +252,7 @@ select_dataset_timepoint <- function(dataset, timepoint) {
   factor_cols <- c("Shock", "Stress", "Sex", "Condition")
   extinction_cols <- c("ext1_curve", "ext2_curve", "ext3_curve", "ext4_curve", "ext5_curve")
   
+  # Instead of a big long loop of if statements, a switch statement is used here
   subset_dataset <- switch(
     timepoint,
     "acquisition" = dataset %>% select(Pre, Post, all_of(factor_cols)),
@@ -189,7 +289,7 @@ high_reminder_shock <- select_dataset_timepoint(complete_ds_high, "reminder_shoc
 high_reminder_recall <- select_dataset_timepoint(complete_ds_high, "reminder_recall")
 
 
-#### Inferential analysis
+#### Inferential analysis ------------------------------------------------------
 
 #### Acquisition ---------------------------------------------------------------
 #add ID column
@@ -294,7 +394,14 @@ ten_minute_pivot_function <- function (dataset){
   ten_minute_extinction_long <- dataset %>% 
     pivot_longer(cols = c(1:5), names_to = "timepoint", values_to = "percentage") %>% 
     droplevels()
-  ten_minute_extinction_long$timepoint <- as.factor(ten_minute_extinction_long$timepoint)
+  
+  # Convert columns to proper types
+  ten_minute_extinction_long <- ten_minute_extinction_long %>%
+    mutate(
+      timepoint = as.factor(timepoint),
+      percentage = as.numeric(percentage)
+    )
+  
   return(ten_minute_extinction_long)
 }
   
@@ -342,44 +449,61 @@ ext_recall_high_anova <- recall_inferential_test_function(high_extinction_recall
 # I do this as ad hoc I knew that these are the results I was most intersted in. 
 # Futhermore, these tests are completely independant and dont need to be corrected for multiple comparisons. 
 
+filter_sex_stress <- function(dataset, sex = "Male", stress = "ELS"){
+  filtered_set <- dataset %>% 
+    filter(Sex == sex, Stress == stress)
+}
+
 filter_sex_stress_condition <- function(dataset, sex = "Male", stress = "ELS", condition = 2){
   filtered_set <- dataset %>% 
     filter(Sex == sex, Stress == stress, Condition == condition)
   return(filtered_set)
 }
 # low
-# I know that the below could perhaps go into a loop, but for readability I think this looks better.
+# I know that the below could perhaps go into a loop, but for readability I think this "looks" better.
 # I still like to have the datasets so I can check things with the environment viewer and open the file to show people etc.
 m_els_2_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Male", stress = "ELS", condition = 2)
 m_els_10_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Male", stress = "ELS", condition = 10)
-m_els_combined_low <- filter_sex_stress_condition()
+m_els_combined_low <- filter_sex_stress(low_extinction_recall, sex = "Male", stress = "ELS")
 
 m_ns_2_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Male", stress = "NS", condition = 2)
 m_ns_10_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Male", stress = "NS", condition = 10)
+m_ns_combined_low <- filter_sex_stress(low_extinction_recall, sex = "Male", stress = "NS")
 
 f_els_2_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Female", stress = "ELS", condition = 2)
 f_els_10_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Female", stress = "ELS", condition = 10)
+f_els_combined_low <- filter_sex_stress(low_extinction_recall, sex = "Female", stress = "ELS")
 
 f_ns_2_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Female", stress = "NS", condition = 2)
 f_ns_10_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Female", stress = "NS", condition = 10)
+f_ns_combined_low <- filter_sex_stress(low_extinction_recall, sex = "Female", stress = "NS")
 
 # high
 m_els_2_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Male", stress = "ELS", condition = 2)
 m_els_10_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Male", stress = "ELS", condition = 10)
+m_els_combined_high <- filter_sex_stress(high_extinction_recall, sex = "Male", stress = "ELS")
 
 m_ns_2_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Male", stress = "NS", condition = 2)
 m_ns_10_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Male", stress = "NS", condition = 10)
+m_ns_combined_high <- filter_sex_stress(high_extinction_recall, sex = "Male", stress = "NS")
 
 f_els_2_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Female", stress = "ELS", condition = 2)
 f_els_10_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Female", stress = "ELS", condition = 10)
+f_els_combined_high <- filter_sex_stress(high_extinction_recall, sex = "Female", stress = "ELS")
 
 f_ns_2_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Female", stress = "NS", condition = 2)
 f_ns_10_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Female", stress = "NS", condition = 10)
+f_ns_combined_high <- filter_sex_stress(high_extinction_recall, sex = "Female", stress = "NS")
 
 # Check the t-tests 
-t.test(extinction_recall ~ Condition, data = m_els_ds_high)
-t.test(extinction_recall ~ Condition, data = m_ns_ds_high)
-t.test(extinction_recall ~ Condition, data = f_els_ds_high)
-t.test(extinction_recall ~ Condition, data = f_ns_ds_high)
+# Low
+t.test(extinction_recall ~ Condition, data = m_els_combined_low)
+t.test(extinction_recall ~ Condition, data = m_ns_combined_low)
+t.test(extinction_recall ~ Condition, data = f_els_combined_low)
+t.test(extinction_recall ~ Condition, data = f_ns_combined_low)
 
-
+# High
+t.test(extinction_recall ~ Condition, data = m_els_combined_high)
+t.test(extinction_recall ~ Condition, data = m_ns_combined_high)
+t.test(extinction_recall ~ Condition, data = f_els_combined_high)
+t.test(extinction_recall ~ Condition, data = f_ns_combined_high)

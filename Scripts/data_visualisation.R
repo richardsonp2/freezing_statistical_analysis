@@ -49,22 +49,7 @@ convert_columns <- function(ds) {
   
   return(ds)
 }
-# Function to clean empty strings in factor columns
-clean_factors <- function(ds) {
-  factor_cols <- c("Shock", "Stress", "Sex", "Condition")
-  
-  for (col in factor_cols) {
-    ds[[col]][ds[[col]] == ""] <- NA
-    ds[[col]] <- droplevels(ds[[col]])
-  }
-  
-  # Reverse the factor levels for 'Condition'
-  ds$Condition <- fct_rev(ds$Condition)
-
-
-  
-  return(ds)
-}
+################
 
 # Pre-processing script execution
 
