@@ -1,14 +1,16 @@
 library(tidyverse)
-library(lme4)
-library(ggplot2)
-library(broom)
-library(ggfortify)
-library(car)
-library(lsr)
+library(ggsignif)
 library(ggpubr)
+library(car)
+library(ggpattern)
 library(rstatix)
+library(cowplot)
+library(svglite)
+library(grid)
 library(emmeans)
-library(lmerTest)
+library(GGally)
+
+# Exploratory Data Analysis (EDA) Overview
 
 #### Data import and cleaning --------------------------------------------------
 # This is the exact same as the EDA.R and data_visualisation.R script (up to Inferential Analysis). I would really like to make this a package. 
@@ -295,220 +297,253 @@ high_reminder_shock <- select_dataset_timepoint(complete_ds_high, "reminder_shoc
 high_reminder_recall <- select_dataset_timepoint(complete_ds_high, "reminder_recall")
 
 
-#### Inferential analysis ------------------------------------------------------
 
-#### Acquisition ---------------------------------------------------------------
-#add ID column
-# freezing_acquisition_high$ID <- seq.int(nrow(freezing_acquisition_high))
-# freezing_acquisition_long_high <- freezing_acquisition_high %>%
-#   pivot_longer(col = c("Pre", "Post"), names_to = "Timepoint", values_to = "Percentage")
-# 
-# freezing_acquisition_long_high$Timepoint <- as.factor(freezing_acquisition_long_high$Timepoint)
-# prepost_aov_high <- aov(data = freezing_acquisition_long_high, Percentage ~ Sex*Stress*Timepoint)
-# summary(prepost_aov_high)
-# 
-# TukeyHSD(prepost_aov_high)
+#### Data Overview and Structure -----------------------------------------------
+# - Load the data and review its structure (columns, data types, missing values).
+# - Summarise categorical variables (e.g., Sex, Stress, Condition) and examine class distributions.
+# - Identify continuous vs. categorical variables to guide the choice of visualisations.
+# TODO might want to move the counts to here. 
+# Counts are present in the visualisation script 
 
-collect_pre_post <- function(dataset) {
-  # Add a unique identifier for each subject
-  dataset$Subject <- seq_along(dataset[,1])
-  
-  # Pivot the data to long format
-  freezing_acquisition <- dataset %>% 
-    pivot_longer(cols = c("Pre", "Post"), 
-                 names_to = "Pre_Post", 
-                 values_to = "Percentage_freezing")
-  
-  return(freezing_acquisition)
-}
+# Group the data by stress and by sex and show a histogram of the pre (and post) scores across the different stress levels, and then another figure with the differences across sex 
 
-freezing_acquisition_low_long <- collect_pre_post(low_acquisition)
-freezing_acquisition_high_long <- collect_pre_post(high_acquisition)
+# Remove NA's from the dataset as a subset 
+acquisition_ds_na_remove <- complete_ds %>% 
+  select(Pre, Post, factor_cols) %>%
+  na.omit()
 
 
-# Pre and post are repeated measures -> will run a repeated measures linear model here.
-pre_post_rm_lme4 <- function(dataset) {
-  # Subject here is the animal ID assigned when pivot longer 
-  # Fit the mixed-effects model
-  rm_lme4_model <- lmer(Percentage_freezing ~ Pre_Post * Sex * Stress + (1|Subject), data = dataset)
-  summary(rm_lme4_model)
-  
-  #plot(reside(rm_lme4_model))
-  plot(rm_lme4_model)
-  return(rm_lme4_model)
-}
+pre_stress <- ggplot(acquisition_ds_na_remove, aes(x = Pre, fill = Stress)) +
+  geom_histogram(binwidth = 1, position = "dodge") +
+  facet_wrap(~Stress) +
+  labs(title = "Distribution of Pre Scores by Stress Level",
+       x = "Pre Score",
+       y = "Frequency",
+       fill = "Stress Level") +
+  theme_minimal()
 
-# Check over normality of residuals. Was the model correct to use? 
-# Residuals look normally distributed, if a little kurtotic.
-# QQ plot shows some deviation from normality, but not too bad (is this expected with the pre-post element of the data?)
-check_model_assumptions <- function(model) {
-  plot(model)
-  qqnorm(resid(model))
-  qqline(resid(model))
-  hist(resid(model))
-}
-# Apply the function 
-rm_lme4_model_low <- pre_post_rm_lme4(freezing_acquisition_low_long)
-summary(rm_lme4_model_low)
-rm_lme4_model_high <- pre_post_rm_lme4(freezing_acquisition_high_long)
-summary(rm_lme4_model_high)
+pre_sex <- ggplot(acquisition_ds_na_remove, aes(x = Pre, fill = Sex)) +
+  geom_histogram(binwidth = 1, position = "dodge") +
+  facet_wrap(~Sex) +
+  labs(title = "Distribution of Pre Scores by Sex",
+       x = "Pre Score",
+       y = "Frequency",
+       fill = "Sex") +
+  theme_minimal()
 
-check_model_assumptions(rm_lme4_model_low)
-check_model_assumptions(rm_lme4_model_high)
+pre_stress
+pre_sex
 
-#### Recall  --------------------------------------------------------------------
-# Use low_recall_combined and high_recall_combined
+# As expected the values for pre are highly zero inflated. 
 
+post_stress <- ggplot(acquisition_ds_na_remove, aes(x = Post, fill = Stress)) +
+  geom_histogram(binwidth = 1, position = "dodge") +
+  facet_wrap(~Stress) +
+  labs(title = "Distribution of Post Scores by Stress Level",
+       x = "Post Score",
+       y = "Frequency",
+       fill = "Stress Level") +
+  theme_minimal()
 
-# No need to use repeated models here, only one time point 
-recall_anova_test <- function(dataset){
-  recall_lm <- lm(data = dataset, recall_1 ~ Sex * Stress * Condition)
-  #summary(recall_lm_high)
-  anova_result <- anova(recall_lm)
-  return(anova_result)
-}
+post_sex <- ggplot(acquisition_ds_na_remove, aes(x = Post, fill = Sex)) +
+  geom_histogram(binwidth = 1, position = "dodge") +
+  facet_wrap(~Sex) +
+  labs(title = "Distribution of Post Scores by Sex",
+       x = "Post Score",
+       y = "Frequency",
+       fill = "Sex") +
+  theme_minimal()
 
-# Check over normality of residuals. Was the model correct to use? 
-# Residuals 
-# QQ plot 
-# low
-recall_lm_model_low <- lm(data = low_recall_combined, recall_1 ~ Sex * Stress * Condition)
-plot(recall_lm_model_low)
-qqnorm(resid(recall_lm_model_low))
-qqline(resid(recall_lm_model_low))
-hist(resid(recall_lm_model_low))
+post_stress
+post_sex
 
-# high
-recall_lm_model_high <- lm(data = high_recall_combined, recall_1 ~ Sex * Stress * Condition)
-plot(recall_lm_model_high)
-qqnorm(resid(recall_lm_model_high))
-qqline(resid(recall_lm_model_high))
-hist(resid(recall_lm_model_high))
+# The distribution becomes more left skewed for the post scores. Which of course makes sense.
 
 
-# Presentation of ANOVA results 
-# Perhaps remove
-recall_anova_low <- recall_anova_test(low_recall_combined)
-recall_anova_high <- recall_anova_test(high_recall_combined)
 
-#### Extinction ----------------------------------------------------------------
-# Use low_extinction and high_extinction
+#### Check for and address any potential outliers or inconsistencies in the data. ---------------
+# - Use boxplots or violin plots to identify potential outliers or extreme values. However, due to the min max being 0 and 100 extreme values dont really apply here. 
+complete_ds %>%
+  select(num_cols) %>%
+  na.omit() %>%
+  gather(key = "variable", value = "value") %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Continuous Variables",
+       x = "Variable",
+       y = "Value") +
+  theme_minimal()
 
-ten_minute_pivot_function <- function (dataset){
-  print(head(dataset))
-  dataset$Subject <- seq_along(dataset[,1])
-  ten_minute_extinction_long <- dataset %>% 
-    pivot_longer(cols = c(1:5), names_to = "timepoint", values_to = "percentage") %>% 
-    droplevels()
-  
-  # Convert columns to proper types
-  ten_minute_extinction_long <- ten_minute_extinction_long %>%
-    mutate(
-      timepoint = as.factor(timepoint),
-      percentage = as.numeric(percentage)
-    )
-  
-  return(ten_minute_extinction_long)
-}
-  
-ten_minute_pivot_low <- ten_minute_pivot_function(low_extinction)
-ten_minute_pivot_high <- ten_minute_pivot_function(high_extinction)
+# Can see that most of the data is showing freezing levels below 50 %.
 
-# Building a model that compares timepoint, sex and stress with subject as nested vairable
-# This is a mixed effects model
-# This is a repeated measures model
-# This is a model that will be used to compare the timecourse of extinction between groups
-extinction_timecourse_model <- function(dataset) {
-  # Subject is the identifier in the dataset
-  # Fit the mixed-effects model
-  rm_lme4_model <- lmer(percentage ~ timepoint * Sex * Stress + (1|Subject), data = dataset)
-  summary(rm_lme4_model)
-  
-  return(rm_lme4_model)
-}
-extinction_timecourse_results_low <- extinction_timecourse_model(ten_minute_pivot_low)
-summary(extinction_timecourse_results_low)
-extinction_timecourse_results_high <- extinction_timecourse_model(ten_minute_pivot_high)
-summary(extinction_timecourse_results_high)
-
-# Check over normality of residuals. Was the model correct to use?
-# Residuals look fairly normal. Low is right skewed a little.
-# QQ plot looks good here
-check_model_assumptions(extinction_timecourse_results_low)
-check_model_assumptions(extinction_timecourse_results_high)
-
-
-#### Extinction recall ---------------------------------------------------------
-
-# Building a model that will test the effects of sex, stress and condition on extinction recall. 
-# This is a mixed effects model that will look at if there is an effecti between any of the factors.
-recall_inferential_test_function <- function(dataset){
-  ext_recall_lm <- lm(data = dataset, extinction_recall ~ Sex + Stress + Condition + Sex:Stress + Sex:Condition + Stress:Condition + Sex:Sex:Condition)
-  summary(ext_recall_lm)
-  anova_test <- Anova(ext_recall_lm)
-  return (anova_test)
-}
-ext_recall_low_anova <- recall_inferential_test_function(low_extinction_recall)
-ext_recall_high_anova <- recall_inferential_test_function(high_extinction_recall)
-
-# Individual t tests conducted assess each combined factor pair, for example M ELS and M NS (male early life stress and non stressed respectively) 
-# I do this as ad hoc I knew that these are the results I was most intersted in. 
-# Futhermore, these tests are completely independant and dont need to be corrected for multiple comparisons. 
-
-filter_sex_stress <- function(dataset, sex = "Male", stress = "ELS"){
-  filtered_set <- dataset %>% 
-    filter(Sex == sex, Stress == stress)
-}
-
-filter_sex_stress_condition <- function(dataset, sex = "Male", stress = "ELS", condition = 2){
-  filtered_set <- dataset %>% 
-    filter(Sex == sex, Stress == stress, Condition == condition)
-  return(filtered_set)
-}
-# low
-# I know that the below could perhaps go into a loop, but for readability I think this "looks" better.
-# I still like to have the datasets so I can check things with the environment viewer and open the file to show people etc.
-m_els_2_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Male", stress = "ELS", condition = 2)
-m_els_10_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Male", stress = "ELS", condition = 10)
-m_els_combined_low <- filter_sex_stress(low_extinction_recall, sex = "Male", stress = "ELS")
-
-m_ns_2_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Male", stress = "NS", condition = 2)
-m_ns_10_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Male", stress = "NS", condition = 10)
-m_ns_combined_low <- filter_sex_stress(low_extinction_recall, sex = "Male", stress = "NS")
-
-f_els_2_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Female", stress = "ELS", condition = 2)
-f_els_10_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Female", stress = "ELS", condition = 10)
-f_els_combined_low <- filter_sex_stress(low_extinction_recall, sex = "Female", stress = "ELS")
-
-f_ns_2_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Female", stress = "NS", condition = 2)
-f_ns_10_low <- filter_sex_stress_condition(low_extinction_recall, sex = "Female", stress = "NS", condition = 10)
-f_ns_combined_low <- filter_sex_stress(low_extinction_recall, sex = "Female", stress = "NS")
-
-# high
-m_els_2_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Male", stress = "ELS", condition = 2)
-m_els_10_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Male", stress = "ELS", condition = 10)
-m_els_combined_high <- filter_sex_stress(high_extinction_recall, sex = "Male", stress = "ELS")
-
-m_ns_2_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Male", stress = "NS", condition = 2)
-m_ns_10_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Male", stress = "NS", condition = 10)
-m_ns_combined_high <- filter_sex_stress(high_extinction_recall, sex = "Male", stress = "NS")
-
-f_els_2_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Female", stress = "ELS", condition = 2)
-f_els_10_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Female", stress = "ELS", condition = 10)
-f_els_combined_high <- filter_sex_stress(high_extinction_recall, sex = "Female", stress = "ELS")
-
-f_ns_2_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Female", stress = "NS", condition = 2)
-f_ns_10_high <- filter_sex_stress_condition(high_extinction_recall, sex = "Female", stress = "NS", condition = 10)
-f_ns_combined_high <- filter_sex_stress(high_extinction_recall, sex = "Female", stress = "NS")
-
-# Check the t-tests 
+# How much has the shock intensity changed the freezing levels? 
+# This is a bit of a complex plot, but it shows the change in freezing levels across the different shock intensities.
 # Low
-t.test(extinction_recall ~ Condition, data = m_els_combined_low)
-t.test(extinction_recall ~ Condition, data = m_ns_combined_low)
-t.test(extinction_recall ~ Condition, data = f_els_combined_low)
-t.test(extinction_recall ~ Condition, data = f_ns_combined_low)
-# High
-t.test(extinction_recall ~ Condition, data = m_els_combined_high)
-t.test(extinction_recall ~ Condition, data = m_ns_combined_high)
-t.test(extinction_recall ~ Condition, data = f_els_combined_high)
-t.test(extinction_recall ~ Condition, data = f_ns_combined_high)
+low_boxplots <- complete_ds %>% 
+  filter(Shock == "l") %>%
+  select(num_cols) %>%
+  gather(key = "variable", value = "value") %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot() +
+  labs(title = "LOW Boxplot of Continuous Variables",
+       x = "Variable",
+       y = "Value") +
+  theme_minimal()
+
+low_boxplots
+
+high_boxplots <- complete_ds %>% 
+  filter(Shock == "h") %>%
+  select(num_cols) %>%
+  gather(key = "variable", value = "value") %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot() +
+  labs(title = "HIGH Boxplot of Continuous Variables",
+       x = "Variable",
+       y = "Value") +
+  theme_minimal()
+
+high_boxplots
+
+# Show the plots side by side
+plot_grid(low_boxplots, high_boxplots)
+
+# High shock intensity has brought the levels up, but most freezing is still well below 50%. 
+
+#### Univariate Analysis of factoral variables.---------------------------------
+#   - For categorical variables (e.g., Sex, Stress, Condition), use pie charts to show proportions.
+
+# Function to produce pie charts for categorical variables
+create_pie_charts <- function(data, factor_columns) {
+  data %>% 
+    select(all_of(factor_columns)) %>%
+    gather(key = "variable", value = "value") %>%
+    filter(!is.na(value)) %>%  # Exclude NA values
+    count(variable, value) %>%
+    ggplot(aes(x = "", y = n, fill = value)) +
+    geom_bar(stat = "identity", width = 1) +
+    geom_text(aes(label = n), position = position_stack(vjust = 0.5)) +
+    coord_polar("y") +
+    facet_wrap(~variable) +
+    labs(
+      title = "Proportion of Categorical Variables",
+      fill = "Value"
+    ) +
+    scale_fill_manual(
+      values = c("ELS" = "green", "NS" = "red", "Male" = "blue", "Female" = "orange", 
+                 "2" = "yellow", "10" = "pink", "l" = "brown", "h" = "beige"),
+      labels = c("ELS" = "ELS", "NS" = "NS", "Male" = "Male", "Female" = "Female", 
+                 "2" = "Extinction Control", "10" = "Extinction trained", "l" = "Low", "h" = "High")
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_blank())
+}
+
+# Can present the pie charts for each timepoint. However be aware some pies will not make much sense (eg Condition at acquisition)
+
+# Acquisition
+pie_charts_acquisition_low <- create_pie_charts(low_acquisition, factor_cols)
+pie_charts_acquisition_high <- create_pie_charts(high_acquisition, factor_cols)
+# Recall
+pie_charts_recall_combined_low <- create_pie_charts(low_recall_combined, factor_cols)
+pie_charts_recall_combined_high <- create_pie_charts(high_recall_combined, factor_cols)
+# Extinction recall
+pie_charts_extinction_recall_low <- create_pie_charts(low_extinction_recall, factor_cols)
+pie_charts_extinction_recall_high <- create_pie_charts(high_extinction_recall, factor_cols)
+
+
+
+# Counts 
+
+
+#' Count observations in a dataset based on grouping type
+#'
+#' This function counts the number of observations in a dataset with optional grouping by factors like "Sex," "Stress," 
+#' "Condition," and "Shock." The grouping can be specified with the `type` argument.
+#'
+#' @param dataset A data frame containing the data to be counted.
+#' @param type A character string specifying the grouping for the count. Valid options are:
+#'   * "overall" - no grouping, just counts all observations
+#'   * "sex" - groups by the `Sex` column
+#'   * "sexstress" - groups by `Sex` and `Stress` columns
+#'   * "allfactors" - groups by `Sex`, `Stress`, `Condition`, and `Shock` columns
+#' @return A data frame with counts of observations based on the specified grouping.
+#' @examples
+#' # Count all observations
+#' count_n(my_data, type = "overall")
+#' @export
+count_n <- function(dataset, type = "overall"){
+  valid_choices <- c("overall", "sex", "sexstress", "allfactors")
+  
+  # Check if the input_string is one of the valid choices
+  if (!(type %in% valid_choices)) {
+    # Raise an exception with a custom error message
+    stop(sprintf("Invalid input: '%s'. Valid options are: %s", 
+                 type, paste(valid_choices, collapse = ", ")))
+  }
+  if (type == "overall"){
+    n_dataset <- dataset %>%
+      count()
+  }
+  else if (type == "sex"){
+    n_dataset <- dataset %>% 
+      group_by(Sex) %>% 
+      count()
+  }
+  else if (type == "sexstress"){
+    n_dataset <- dataset %>%
+      group_by(Sex, Stress) %>%
+      count()
+  }
+  else if (type == "allfactors"){
+    n_dataset <- dataset %>% 
+      group_by(Sex, Stress, Condition, Shock) %>% 
+      count()
+  }
+  return (n_dataset)
+}
+
+##### Main count run -----------------------------------------------------------
+overall_count <- count_n(complete_ds, "overall")
+sex_count <- count_n(complete_ds, "sex")
+sex_stress_count <- count_n(complete_ds, "sexstress")
+all_factors_count <- count_n(complete_ds, "allfactors")
+
+
+#' Subset for shock intensity 
+#'
+#' @param dataset A data frame containing the data to be subset.
+#' @param intensity A character string specifying the shock intensity. Valid options are:
+#'   * "Low" - Low shock intensity 0.5mA
+#'   * "High" - High shock intensity 0.7mA
+#' @return The subsetted shock intensity data frame. 
+#' @export
+subset_by_shock_intensity <- function(dataset, intensity){
+  
+  if (intensity == "Low"){
+    subset <- dataset %>% 
+      filter (Shock == "l")
+  }
+  else if (intensity =="High"){
+    subset <- dataset %>% 
+      filter (Shock == "h")
+  }
+  return (subset)
+}
+
+complete_ds_low <- subset_by_shock_intensity(complete_ds, "Low")
+complete_ds_high <- subset_by_shock_intensity(complete_ds, "High")
+
+#### Counts for Low and High ---------------------------------------------------
+
+# Low counts 
+overall_count_low <- count_n(complete_ds_low, "overall")
+sex_count_low <- count_n(complete_ds_low, "sex")
+sex_stress_count_low <- count_n(complete_ds_low, "sexstress")
+all_factors_count_low <- count_n(complete_ds_low, "allfactors")
+
+# High counts
+overall_count_high <- count_n(complete_ds_high, "overall")
+sex_count_high <- count_n(complete_ds_high, "sex")
+sex_stress_count_high <- count_n(complete_ds_high, "sexstress")
+all_factors_count_high <- count_n(complete_ds_high, "allfactors")
